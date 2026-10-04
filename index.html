@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Loopy Study"/>
+  <meta name="application-name" content="Loopy Study"/>
+  <meta name="theme-color" content="#0a0806"/>
+  <title>Loopy Study 🐰</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="icon" type="image/png" href="icon-512.png"/>
+  <link rel="apple-touch-icon" href="icon-512.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    :root{--app-w:100%;--app-half:50%;}
+    @media(min-width:540px){:root{--app-w:480px;--app-half:240px;}}
+    @media(min-width:768px){:root{--app-w:520px;--app-half:260px;}}
+    @media(min-width:1024px){:root{--app-w:560px;--app-half:280px;}}
+    html,body{margin:0;padding:0;background:#0a0806;min-height:100vh;min-height:100dvh;overscroll-behavior:none;}
+    @media(min-width:768px){
+      body{background:#060402;}
+      body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,#1c140e 0%,#060402 70%);pointer-events:none;z-index:0;}
+    }
+    *{box-sizing:border-box;}
+    #root{position:relative;z-index:1;min-height:100vh;min-height:100dvh;display:flex;justify-content:center;align-items:flex-start;}
+    #root>*{width:100%;}
+    input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;width:100%;}
+    input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,#c8a030,#7c3a00);}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#f59e0b;margin-top:-7px;cursor:pointer;border:2px solid #a07020;}
+    input::placeholder,textarea::placeholder{color:#44403c;}
+    input[type=text],input[type=password],textarea{caret-color:#f59e0b;}
+    ::-webkit-scrollbar{width:3px;}
+    ::-webkit-scrollbar-track{background:#0a0806;}
+    ::-webkit-scrollbar-thumb{background:#44403c;border-radius:2px;}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+    const _ow=console.warn.bind(console);
+    console.warn=(...a)=>{if(typeof a[0]==='string'&&a[0].includes('Babel'))return;_ow(...a);};
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+
+const INTERVALS = [1, 3, 5, 10, 17, 30];
+const todayMidnight = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+const FAR_FUTURE = () => addDays(todayMidnight(), 36500); // sentinel: "no further review scheduled"
+const localDateStr = () => { const d=new Date(); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; };
+const localYesterdayStr = () => { const d=new Date(); d.setDate(d.getDate()-1); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; };
+const isDue = (s) => new Date(s.nextReview) <= new Date();
+const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+const tagColor = (t) => { const m={"Math":"#f59e0b","Science":"#10b981","History":"#f97316","Language":"#3b82f6","Literature":"#a78bfa","Art":"#ec4899","Other":"#78716c"}; if(m[t])return m[t]; const h=((t||"").split("").reduce((a,c)=>a*31+c.charCodeAt(0),7)>>>0)%360; return `hsl(${h},60%,55%)`; };
+const hashPass = (s) => btoa(s.split("").reduce((a,c,i)=>a+c.charCodeAt(0)*(i+7)+"","")); // simple obfuscation, local-only app
+
+// ── Carrot Bar (review stage progress strip) ─────────────────────────────────
+const CarrotBar = ({ stage }) => (
+  <div style={{display:"flex",gap:5,alignItems:"flex-end"}}>
+    {INTERVALS.map((day,i) => (
+      <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+        <div>
+          {i<stage&&<div style={{display:"flex",gap:1,justifyContent:"center",marginBottom:1}}>{[0,1].map(j=><div key={j} style={{width:3,height:5,background:"#16a34a",borderRadius:"50% 50% 0 0",transform:`rotate(${(j-.5)*20}deg)`,transformOrigin:"bottom"}}/>)}</div>}
+          <div style={{width:10,height:i<stage?18:9,background:i<stage?"#f97316":"#292524",borderRadius:i<stage?"3px 3px 50% 50%":"2px",border:`1.5px solid ${i<stage?"#ea580c":"#44403c"}`,transition:"all .4s cubic-bezier(.34,1.56,.64,1)"}}/>
+        </div>
+        <div style={{fontSize:9,color:i<stage?"#f97316":"#44403c",fontFamily:"'Baloo 2',cursive",fontWeight:700}}>{day}d</div>
+      </div>
+    ))}
+  </div>
+);
+
+const LANGUAGES = [
+  {code:"en",label:"English",flag:"🇬🇧"},{code:"tr",label:"Türkçe",flag:"🇹🇷"},
+  {code:"de",label:"Deutsch",flag:"🇩🇪"},{code:"fr",label:"Français",flag:"🇫🇷"},
+  {code:"es",label:"Español",flag:"🇪🇸"},{code:"ja",label:"日本語",flag:"🇯🇵"},
+  {code:"ko",label:"한국어",flag:"🇰🇷"},
+];
+
+const T = {
+  en:{app:"🐰 Loopy Study",appSub:"Spaced repetition · grow your garden",today:"Today",subjects:"Subjects",garden:"Garden",account:"Account",dueToday:"due today",allCaughtUp:"All caught up!",rabbitWaiting:"Your rabbit is waiting to grow carrots 🥕",noReviews:"No reviews due · relax for now ✨",startReview:"Start reviewing →",dueNow:"Due Now",comingUp:"Coming Up",noSubjects:"No subjects yet!",addFirst:"Tap + to add your first subject 🥕",studyNow:"Study →",addSubject:"🌱 Add New Subject",subjectName:"SUBJECT NAME *",notesLabel:"NOTES / KEY POINTS",category:"CATEGORY",plant:"Plant this subject 🥕",carrots:"carrots grown",level:"Level",streak:"day streak",settings:"SETTINGS",reminders:"Daily Reminders",remindersSub:"Get notified when reviews are due",darkMode:"Dark Mode",darkModeSub:"Easy on the eyes",language:"Language",focusMode:"Focus Mode",focusModeSub:"Block distractions while studying",reviewLoop:"YOUR REVIEW LOOP",loopDesc:"Each time you study your next review is pushed further — that grows your carrots! 🥕",totalCarrots:"Carrots Grown",dayStreak:"Day Streak",studyTime:"Study Time",sessions:"Sessions",total:"Total",due:"Due",mastered:"Mastered",gardenTitle:"Your Carrot Garden",tapCarrot:"tap a carrot for details",healthy:"Healthy",growing:"Growing",needsReview:"Needs review",gardenEmpty:"Your garden is empty",gardenEmptySub:"Add subjects to see your carrots grow",focusTitle:"Focus Mode",focusActive:"🔕 Distractions blocked",focusExit:"Exit Focus Mode",breathIn:"BREATHE IN",breathOut:"BREATHE OUT",focusTime:"FOCUS TIME",searchPlaceholder:"Search subjects…",sortDue:"Due first",sortName:"A–Z",sortStage:"Progress",sortActive:"Active",reviewNum:"Review #",back:"← Back",startStudying:"▶  Start Studying",pause:"⏸  Pause",resume:"▶  Resume",markStudied:"✓  Mark as Studied",saveNext:"🥕  Save & Next Review in",days:"days",motiv:["You're doing great! Keep going 🥕","Every review grows your carrot! 🌱","Consistency beats perfection 🐰","Small steps every day! ✨","Your future self will thank you 🎯","Knowledge compounds like interest 📈","One more review! You've got this 💪"],logout:"Log Out",logoutConfirm:"Log out?",cancel:"Cancel",splashTagline:"Grow knowledge.\nOne carrot at a time.",loginTitle:"Welcome back",loginSub:"Sign in to your garden",registerTitle:"Create your garden",registerSub:"Start growing today",username:"Username",password:"Password",confirmPw:"Confirm Password",signIn:"Sign In",createAccount:"Create Account",noAccount:"No account?",hasAccount:"Have an account?",register:"Register",loginError:"Wrong username or password",registerError:"Passwords don't match",userExists:"Username already taken",usernameMin:"Username must be 3+ characters",passwordMin:"Password must be 4+ characters"},
+  tr:{app:"🐰 Loopy Study",appSub:"Aralıklı tekrar · bahçeni büyüt",today:"Bugün",subjects:"Dersler",garden:"Bahçe",account:"Hesap",dueToday:"ders bekliyor",allCaughtUp:"Hepsi tamam!",rabbitWaiting:"Tavşanın havuç büyütmeni bekliyor 🥕",noReviews:"Bugün tekrar yok · dinlen ✨",startReview:"Tekrara başla →",dueNow:"Şimdi Bekliyor",comingUp:"Yakında",noSubjects:"Henüz ders yok!",addFirst:"+ ile ilk dersini ekle 🥕",studyNow:"Çalış →",addSubject:"🌱 Yeni Ders Ekle",subjectName:"DERS ADI *",notesLabel:"NOTLAR",category:"KATEGORİ",plant:"Bu dersi ek 🥕",carrots:"havuç yetiştirildi",level:"Seviye",streak:"günlük seri",settings:"AYARLAR",reminders:"Hatırlatıcılar",remindersSub:"Tekrarlar gelince bildirim al",darkMode:"Karanlık Mod",darkModeSub:"Gözlere dost",language:"Dil",focusMode:"Odak Modu",focusModeSub:"Dikkat dağıtıcıları engelle",reviewLoop:"TEKİRAR DÖNGÜSÜ",loopDesc:"Her çalışmada bir sonraki tekrar ileriye itilir — böylece havuçların büyür! 🥕",totalCarrots:"Yetiştirilen Havuç",dayStreak:"Günlük Seri",studyTime:"Çalışma Süresi",sessions:"Oturumlar",total:"Toplam",due:"Bekleyen",mastered:"Ustalaşıldı",gardenTitle:"Havuç Bahçen",tapCarrot:"detaylar için havuca dokun",healthy:"Sağlıklı",growing:"Büyüyor",needsReview:"Tekrar Gerekli",gardenEmpty:"Bahçen boş",gardenEmptySub:"Havuçların büyümesi için ders ekle",focusTitle:"Odak Modu",focusActive:"🔕 Dikkat dağıtıcılar engellendi",focusExit:"Odak Modundan Çık",breathIn:"NEFES AL",breathOut:"VER",focusTime:"ODAK SÜRESİ",searchPlaceholder:"Ders ara…",sortDue:"Önce bekleyenler",sortName:"A–Z",sortStage:"İlerleme",sortActive:"Aktif",reviewNum:"Tekrar #",back:"← Geri",startStudying:"▶  Çalışmaya Başla",pause:"⏸  Duraklat",resume:"▶  Devam",markStudied:"✓  Tamamlandı",saveNext:"🥕  Kaydet & Sonraki",days:"gün",motiv:["Harika gidiyorsun! Devam et 🥕","Her tekrar havucunu büyütür! 🌱","Tutarlılık mükemmeliyeti geçer 🐰","Her gün küçük adımlar! ✨","Gelecekteki sen teşekkür edecek 🎯","Bilgi faiz gibi birikerek büyür 📈","Bir tekrar daha! Yapabilirsin 💪"],logout:"Çıkış Yap",logoutConfirm:"Çıkış yapılsın mı?",cancel:"İptal",splashTagline:"Bilgiyi büyüt.\nBir havuç seferde.",loginTitle:"Tekrar hoşgeldin",loginSub:"Bahçene giriş yap",registerTitle:"Bahçeni oluştur",registerSub:"Bugün büyümeye başla",username:"Kullanıcı Adı",password:"Şifre",confirmPw:"Şifreyi Onayla",signIn:"Giriş Yap",createAccount:"Hesap Oluştur",noAccount:"Hesabın yok mu?",hasAccount:"Hesabın var mı?",register:"Kayıt Ol",loginError:"Kullanıcı adı veya şifre hatalı",registerError:"Şifreler eşleşmiyor",userExists:"Bu kullanıcı adı alınmış",usernameMin:"Kullanıcı adı en az 3 karakter olmalı",passwordMin:"Şifre en az 4 karakter olmalı"},
+  de:{app:"🐰 Loopy Study",appSub:"Spaced Repetition · wachse deinen Garten",today:"Heute",subjects:"Fächer",garden:"Garten",account:"Konto",dueToday:"fällig",allCaughtUp:"Alles erledigt!",rabbitWaiting:"Dein Hase wartet auf Karotten 🥕",noReviews:"Keine Wiederholungen · entspann dich ✨",startReview:"Wiederholen →",dueNow:"Jetzt fällig",comingUp:"Demnächst",noSubjects:"Noch keine Fächer!",addFirst:"Tippe + um hinzuzufügen 🥕",studyNow:"Lernen →",addSubject:"🌱 Neues Fach",subjectName:"FACHNAME *",notesLabel:"NOTIZEN",category:"KATEGORIE",plant:"Fach pflanzen 🥕",carrots:"Karotten",level:"Level",streak:"Tage Serie",settings:"EINSTELLUNGEN",reminders:"Erinnerungen",remindersSub:"Benachrichtigung bei Wiederholungen",darkMode:"Dunkelmodus",darkModeSub:"Augenfreundlich",language:"Sprache",focusMode:"Fokusmodus",focusModeSub:"Ablenkungen blockieren",reviewLoop:"LERNSCHLEIFE",loopDesc:"Jedes Mal wenn du lernst wird die nächste Wiederholung weiter verschoben! 🥕",totalCarrots:"Karotten",dayStreak:"Tages-Serie",studyTime:"Lernzeit",sessions:"Sitzungen",total:"Gesamt",due:"Fällig",mastered:"Gemeistert",gardenTitle:"Dein Karottengarten",tapCarrot:"Karotte antippen",healthy:"Gesund",growing:"Wächst",needsReview:"Nötig",gardenEmpty:"Dein Garten ist leer",gardenEmptySub:"Füge Fächer hinzu",focusTitle:"Fokusmodus",focusActive:"🔕 Ablenkungen blockiert",focusExit:"Beenden",breathIn:"EINATMEN",breathOut:"AUSATMEN",focusTime:"FOKUSZEIT",searchPlaceholder:"Suchen…",sortDue:"Fällig zuerst",sortName:"A–Z",sortStage:"Fortschritt",sortActive:"Aktiv",reviewNum:"Wiederholung #",back:"← Zurück",startStudying:"▶  Lernen",pause:"⏸  Pause",resume:"▶  Weiter",markStudied:"✓  Gelernt",saveNext:"🥕  Speichern & nächste in",days:"Tagen",motiv:["Super! Weiter so 🥕","Jede Wiederholung lässt deine Karotte wachsen! 🌱","Konstanz schlägt Perfektion 🐰","Kleine Schritte jeden Tag! ✨","Dein zukünftiges Ich dankt dir 🎯","Wissen wächst wie Zinsen 📈","Noch eine! Du schaffst das 💪"],logout:"Abmelden",logoutConfirm:"Abmelden?",cancel:"Abbrechen",splashTagline:"Wissen wachsen lassen.\nEine Karotte nach der anderen.",loginTitle:"Willkommen zurück",loginSub:"Melde dich an",registerTitle:"Deinen Garten erstellen",registerSub:"Fang heute an zu wachsen",username:"Benutzername",password:"Passwort",confirmPw:"Passwort bestätigen",signIn:"Anmelden",createAccount:"Konto erstellen",noAccount:"Noch kein Konto?",hasAccount:"Hast du ein Konto?",register:"Registrieren",loginError:"Falscher Benutzername oder Passwort",registerError:"Passwörter stimmen nicht überein",userExists:"Benutzername bereits vergeben",usernameMin:"Benutzername muss 3+ Zeichen haben",passwordMin:"Passwort muss 4+ Zeichen haben"},
+  fr:{app:"🐰 Loopy Study",appSub:"Répétition espacée · fais pousser ton jardin",today:"Aujourd'hui",subjects:"Matières",garden:"Jardin",account:"Compte",dueToday:"à réviser",allCaughtUp:"Tout est fait!",rabbitWaiting:"Ton lapin attend des carottes 🥕",noReviews:"Aucune révision · repose-toi ✨",startReview:"Commencer →",dueNow:"À faire",comingUp:"À venir",noSubjects:"Aucune matière!",addFirst:"Appuie sur + pour ajouter 🥕",studyNow:"Réviser →",addSubject:"🌱 Ajouter une matière",subjectName:"NOM *",notesLabel:"NOTES",category:"CATÉGORIE",plant:"Planter 🥕",carrots:"carottes",level:"Niveau",streak:"jours de suite",settings:"PARAMÈTRES",reminders:"Rappels",remindersSub:"Notifié quand une révision est due",darkMode:"Mode sombre",darkModeSub:"Agréable pour les yeux",language:"Langue",focusMode:"Mode focus",focusModeSub:"Bloquer les distractions",reviewLoop:"BOUCLE DE RÉVISION",loopDesc:"Chaque révision repousse la prochaine — vos carottes poussent! 🥕",totalCarrots:"Carottes",dayStreak:"Jours consécutifs",studyTime:"Temps d'étude",sessions:"Sessions",total:"Total",due:"À faire",mastered:"Maîtrisé",gardenTitle:"Ton jardin",tapCarrot:"touche une carotte",healthy:"En santé",growing:"En croissance",needsReview:"À réviser",gardenEmpty:"Ton jardin est vide",gardenEmptySub:"Ajoute des matières",focusTitle:"Mode Focus",focusActive:"🔕 Distractions bloquées",focusExit:"Quitter",breathIn:"INSPIREZ",breathOut:"EXPIREZ",focusTime:"TEMPS DE FOCUS",searchPlaceholder:"Rechercher…",sortDue:"Priorité",sortName:"A–Z",sortStage:"Progrès",sortActive:"Actif",reviewNum:"Révision #",back:"← Retour",startStudying:"▶  Commencer",pause:"⏸  Pause",resume:"▶  Reprendre",markStudied:"✓  Révisé",saveNext:"🥕  Sauvegarder & prochain dans",days:"jours",motiv:["Tu te débrouilles super bien! 🥕","Chaque révision fait pousser ta carotte! 🌱","La constance bat la perfection 🐰","Petits pas chaque jour! ✨","Ton futur toi te remerciera 🎯","Le savoir croît comme les intérêts 📈","Encore une révision! Tu y es presque 💪"],logout:"Déconnexion",logoutConfirm:"Se déconnecter?",cancel:"Annuler",splashTagline:"Faites pousser vos connaissances.\nUne carotte à la fois.",loginTitle:"Bon retour",loginSub:"Connectez-vous à votre jardin",registerTitle:"Créer votre jardin",registerSub:"Commencez à grandir aujourd'hui",username:"Nom d'utilisateur",password:"Mot de passe",confirmPw:"Confirmer le mot de passe",signIn:"Se connecter",createAccount:"Créer un compte",noAccount:"Pas de compte?",hasAccount:"Déjà un compte?",register:"S'inscrire",loginError:"Identifiants incorrects",registerError:"Les mots de passe ne correspondent pas",userExists:"Nom d'utilisateur déjà pris",usernameMin:"3 caractères minimum",passwordMin:"4 caractères minimum"},
+  es:{app:"🐰 Loopy Study",appSub:"Repetición espaciada · haz crecer tu jardín",today:"Hoy",subjects:"Materias",garden:"Jardín",account:"Cuenta",dueToday:"para repasar",allCaughtUp:"¡Todo al día!",rabbitWaiting:"Tu conejo espera zanahorias 🥕",noReviews:"Sin repasos hoy · descansa ✨",startReview:"Empezar →",dueNow:"Pendiente",comingUp:"Próximamente",noSubjects:"¡Sin materias aún!",addFirst:"Toca + para añadir 🥕",studyNow:"Estudiar →",addSubject:"🌱 Añadir materia",subjectName:"NOMBRE *",notesLabel:"NOTAS",category:"CATEGORÍA",plant:"Plantar 🥕",carrots:"zanahorias",level:"Nivel",streak:"días seguidos",settings:"AJUSTES",reminders:"Recordatorios",remindersSub:"Notificación cuando hay un repaso",darkMode:"Modo oscuro",darkModeSub:"Agradable para los ojos",language:"Idioma",focusMode:"Modo enfoque",focusModeSub:"Bloquear distracciones",reviewLoop:"BUCLE DE REPASO",loopDesc:"Cada vez que estudias el próximo repaso se aleja — así crecen tus zanahorias! 🥕",totalCarrots:"Zanahorias",dayStreak:"Días seguidos",studyTime:"Tiempo",sessions:"Sesiones",total:"Total",due:"Pendiente",mastered:"Dominado",gardenTitle:"Tu jardín",tapCarrot:"toca una zanahoria",healthy:"Sana",growing:"Creciendo",needsReview:"Necesita repaso",gardenEmpty:"Tu jardín está vacío",gardenEmptySub:"Añade materias",focusTitle:"Modo Enfoque",focusActive:"🔕 Distracciones bloqueadas",focusExit:"Salir",breathIn:"INHALAR",breathOut:"EXHALAR",focusTime:"TIEMPO DE ENFOQUE",searchPlaceholder:"Buscar…",sortDue:"Urgente primero",sortName:"A–Z",sortStage:"Progreso",sortActive:"Activo",reviewNum:"Repaso #",back:"← Volver",startStudying:"▶  Empezar",pause:"⏸  Pausa",resume:"▶  Reanudar",markStudied:"✓  Repasado",saveNext:"🥕  Guardar & siguiente en",days:"días",motiv:["¡Lo estás haciendo genial! 🥕","¡Cada repaso hace crecer tu zanahoria! 🌱","La constancia supera a la perfección 🐰","¡Pequeños pasos cada día! ✨","Tu yo futuro te lo agradecerá 🎯","El conocimiento crece como el interés 📈","¡Un repaso más! Tú puedes 💪"],logout:"Cerrar sesión",logoutConfirm:"¿Cerrar sesión?",cancel:"Cancelar",splashTagline:"Haz crecer el conocimiento.\nUna zanahoria a la vez.",loginTitle:"Bienvenido de nuevo",loginSub:"Inicia sesión en tu jardín",registerTitle:"Crea tu jardín",registerSub:"Empieza a crecer hoy",username:"Usuario",password:"Contraseña",confirmPw:"Confirmar contraseña",signIn:"Iniciar sesión",createAccount:"Crear cuenta",noAccount:"¿Sin cuenta?",hasAccount:"¿Ya tienes cuenta?",register:"Registrarse",loginError:"Usuario o contraseña incorrectos",registerError:"Las contraseñas no coinciden",userExists:"Nombre de usuario ya en uso",usernameMin:"El usuario debe tener 3+ caracteres",passwordMin:"La contraseña debe tener 4+ caracteres"},
+  ja:{app:"🐰 ループ学習",appSub:"間隔反復 · 庭を育てよう",today:"今日",subjects:"科目",garden:"庭園",account:"設定",dueToday:"件 復習待ち",allCaughtUp:"全部完了！",rabbitWaiting:"ウサギがにんじんを待っています 🥕",noReviews:"今日の復習なし · 休んでください ✨",startReview:"復習開始 →",dueNow:"今日が期限",comingUp:"近日中",noSubjects:"科目がまだありません！",addFirst:"+ をタップして追加 🥕",studyNow:"学習 →",addSubject:"🌱 新しい科目を追加",subjectName:"科目名 *",notesLabel:"メモ",category:"カテゴリー",plant:"この科目を植える 🥕",carrots:"にんじん",level:"レベル",streak:"日連続",settings:"設定",reminders:"リマインダー",remindersSub:"復習が来たら通知",darkMode:"ダークモード",darkModeSub:"目に優しい",language:"言語",focusMode:"フォーカスモード",focusModeSub:"集中中に邪魔をブロック",reviewLoop:"学習ループ",loopDesc:"勉強するたびに次の復習が先送りされます！ 🥕",totalCarrots:"にんじん",dayStreak:"連続日数",studyTime:"学習時間",sessions:"セッション",total:"合計",due:"期限",mastered:"習得済み",gardenTitle:"にんじん畑",tapCarrot:"タップして詳細",healthy:"健康",growing:"成長中",needsReview:"復習が必要",gardenEmpty:"庭が空です",gardenEmptySub:"科目を追加してください",focusTitle:"フォーカスモード",focusActive:"🔕 集中中",focusExit:"終了",breathIn:"吸う",breathOut:"吐く",focusTime:"集中時間",searchPlaceholder:"検索…",sortDue:"期限順",sortName:"A–Z",sortStage:"進捗",sortActive:"アクティブ",reviewNum:"復習 #",back:"← 戻る",startStudying:"▶  開始",pause:"⏸  一時停止",resume:"▶  再開",markStudied:"✓  学習済み",saveNext:"🥕  保存 & 次回",days:"日後",motiv:["頑張っています！ 🥕","復習するたびにんじんが育ちます！ 🌱","継続は力なり 🐰","毎日小さな一歩！ ✨","将来の自分が感謝します 🎯","知識は積み重なります 📈","もう一回！できる 💪"],logout:"ログアウト",logoutConfirm:"ログアウトしますか？",cancel:"キャンセル",splashTagline:"知識を育てよう。\n一本のにんじんずつ。",loginTitle:"おかえりなさい",loginSub:"庭にサインイン",registerTitle:"庭を作ろう",registerSub:"今日から始めよう",username:"ユーザー名",password:"パスワード",confirmPw:"パスワード確認",signIn:"サインイン",createAccount:"アカウント作成",noAccount:"アカウントなし？",hasAccount:"アカウントあり？",register:"登録",loginError:"ユーザー名またはパスワードが違います",registerError:"パスワードが一致しません",userExists:"このユーザー名は使われています",usernameMin:"3文字以上必要です",passwordMin:"4文字以上必要です"},
+  ko:{app:"🐰 루피 스터디",appSub:"간격 반복 · 정원을 키워보세요",today:"오늘",subjects:"과목",garden:"정원",account:"계정",dueToday:"개 복습 대기",allCaughtUp:"모두 완료!",rabbitWaiting:"토끼가 당근을 기다리고 있어요 🥕",noReviews:"오늘 복습 없음 · 쉬세요 ✨",startReview:"복습 시작 →",dueNow:"지금 필요",comingUp:"곧 예정",noSubjects:"과목이 없어요!",addFirst:"+ 를 눌러 첫 과목 추가 🥕",studyNow:"공부하기 →",addSubject:"🌱 새 과목 추가",subjectName:"과목 이름 *",notesLabel:"노트",category:"카테고리",plant:"이 과목 심기 🥕",carrots:"당근",level:"레벨",streak:"일 연속",settings:"설정",reminders:"매일 알림",remindersSub:"복습이 있을 때 알림",darkMode:"다크 모드",darkModeSub:"눈에 편안한",language:"언어",focusMode:"집중 모드",focusModeSub:"방해 요소 차단",reviewLoop:"학습 루프",loopDesc:"공부할 때마다 다음 복습이 더 멀어집니다 🥕",totalCarrots:"당근",dayStreak:"연속 일수",studyTime:"공부 시간",sessions:"세션",total:"전체",due:"대기",mastered:"완전 습득",gardenTitle:"당근 정원",tapCarrot:"당근을 눌러 보기",healthy:"건강함",growing:"성장 중",needsReview:"복습 필요",gardenEmpty:"정원이 비어 있어요",gardenEmptySub:"과목을 추가하세요",focusTitle:"집중 모드",focusActive:"🔕 방해 요소 차단됨",focusExit:"종료",breathIn:"들이쉬기",breathOut:"내쉬기",focusTime:"집중 시간",searchPlaceholder:"과목 검색…",sortDue:"대기 우선",sortName:"A–Z",sortStage:"진행도",sortActive:"활동",reviewNum:"복습 #",back:"← 뒤로",startStudying:"▶  공부 시작",pause:"⏸  일시정지",resume:"▶  계속",markStudied:"✓  학습 완료",saveNext:"🥕  저장 & 다음",days:"일 후",motiv:["잘 하고 있어요! 🥕","복습할 때마다 당근이 자라요! 🌱","꾸준함이 완벽함을 이겨요 🐰","매일 작은 걸음씩! ✨","미래의 나 자신이 감사할 거예요 🎯","지식은 이자처럼 쌓입니다 📈","한 번 더! 할 수 있어요 💪"],logout:"로그아웃",logoutConfirm:"로그아웃하시겠어요?",cancel:"취소",splashTagline:"지식을 키워보세요.\n한 번에 당근 하나씩.",loginTitle:"다시 오셨군요",loginSub:"정원에 로그인",registerTitle:"정원 만들기",registerSub:"오늘부터 시작해요",username:"사용자 이름",password:"비밀번호",confirmPw:"비밀번호 확인",signIn:"로그인",createAccount:"계정 만들기",noAccount:"계정이 없으신가요?",hasAccount:"이미 계정이 있나요?",register:"가입",loginError:"사용자 이름 또는 비밀번호가 틀렸어요",registerError:"비밀번호가 일치하지 않아요",userExists:"이미 사용 중인 이름이에요",usernameMin:"3자 이상 필요해요",passwordMin:"4자 이상 필요해요"},
+};
+const useT = (lang) => T[lang] || T.en;
+
+// ── Storage helpers ───────────────────────────────────────────────────────────
+const _mem={};
+const _ls=(()=>{try{localStorage.setItem("_t","1");localStorage.removeItem("_t");return true;}catch{return false;}})();
+const stor={get:async(k)=>{try{const r=_ls?localStorage.getItem(k):_mem[k];return r?JSON.parse(r):null;}catch{return null;}},set:async(k,v)=>{try{const s=JSON.stringify(v);if(_ls)localStorage.setItem(k,s);else _mem[k]=s;}catch{}}};
+
+// ── Shared mini components ────────────────────────────────────────────────────
+const Rabbit = ({ mood="idle", size=80 }) => {
+  const c = {idle:"#c8a96e",happy:"#8db89a",focused:"#c8a96e"}[mood]||"#c8a96e";
+  const sc = size/80;
+  return (
+    <svg width={80*sc} height={100*sc} viewBox="0 0 80 100" fill="none">
+      <ellipse cx="28" cy="22" rx="9" ry="20" fill={c} stroke="#d97706" strokeWidth="1.5"/>
+      <ellipse cx="28" cy="22" rx="4" ry="14" fill="#c4867a" opacity=".7"/>
+      <ellipse cx="52" cy="22" rx="9" ry="20" fill={c} stroke="#d97706" strokeWidth="1.5"/>
+      <ellipse cx="52" cy="22" rx="4" ry="14" fill="#c4867a" opacity=".7"/>
+      <ellipse cx="40" cy="48" rx="22" ry="20" fill={c} stroke="#d97706" strokeWidth="1.5"/>
+      <circle cx="33" cy="45" r="4" fill="#1c1917"/><circle cx="47" cy="45" r="4" fill="#1c1917"/>
+      <circle cx="34.5" cy="43.5" r="1.5" fill="white"/><circle cx="48.5" cy="43.5" r="1.5" fill="white"/>
+      <ellipse cx="40" cy="52" rx="3.5" ry="2.5" fill="#b8706a"/>
+      {mood==="happy"?<path d="M36 56 Q40 61 44 56" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round" fill="none"/>:mood==="focused"?<path d="M36 57 L44 57" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round" fill="none"/>:<path d="M36 56 Q40 59 44 56" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round" fill="none"/>}
+      <ellipse cx="30" cy="54" rx="6" ry="3" fill="#c4867a" opacity=".4"/>
+      <ellipse cx="50" cy="54" rx="6" ry="3" fill="#c4867a" opacity=".4"/>
+      <ellipse cx="40" cy="80" rx="20" ry="18" fill={c} stroke="#d97706" strokeWidth="1.5"/>
+      <ellipse cx="26" cy="90" rx="8" ry="5" fill={c} stroke="#d97706" strokeWidth="1.2"/>
+      <ellipse cx="54" cy="90" rx="8" ry="5" fill={c} stroke="#d97706" strokeWidth="1.2"/>
+      {mood==="happy"&&<><rect x="36" y="72" width="8" height="14" rx="3" fill="#f97316"/><path d="M36 72 Q40 68 44 72" stroke="#16a34a" strokeWidth="2" fill="none"/><line x1="40" y1="68" x2="40" y2="64" stroke="#16a34a" strokeWidth="1.5"/></>}
+    </svg>
+  );
+};
+
+
+// ── Global Toggle bileşeni ─────────────────────────────────────────────────────
+const Toggle = ({value,onChange}) => (
+  <div onClick={()=>onChange(!value)} style={{width:46,height:26,borderRadius:99,background:value?"#f59e0b":"#292524",border:`2px solid ${value?"#d97706":"#44403c"}`,cursor:"pointer",position:"relative",transition:"all .25s",flexShrink:0}}>
+    <div style={{position:"absolute",top:3,left:value?22:3,width:16,height:16,borderRadius:"50%",background:value?"#1c1917":"#57534e",transition:"left .25s"}}/>
+  </div>
+);
+// ── Hopping Rabbit (screen crosser) ──────────────────────────────────────────
+const HoppingRabbit = () => {
+  const [vis,    setVis]   = useState(false);
+  const [posX,   setPosX]  = useState(-70);
+  const [bottom, setBot]   = useState(94);
+  const [flipX,  setFlipX] = useState(false);
+  const [jumpY,  setJumpY] = useState(0);
+  const rafRef  = useRef(null);
+  const hopRef  = useRef(null);
+  const nextRef = useRef(null);
+  const alive   = useRef(true);
+
+  useEffect(() => {
+    alive.current = true;
+    const schedule = (ms) => { nextRef.current = setTimeout(startRun, ms); };
+    const startRun = () => {
+      if (!alive.current) return;
+      const W     = window.innerWidth;
+      const right = Math.random() > 0.5;
+      const sx    = right ? -70 : W + 70;
+      const ex    = right ? W + 70 : -70;
+      const bot   = 94 + Math.floor(Math.random() * 20);
+      const dur   = 3000 + Math.random() * 1400;
+      const t0    = Date.now();
+      setVis(true); setPosX(sx); setBot(bot); setFlipX(!right);
+      let up = true;
+      const doHop = () => {
+        if (!alive.current) return;
+        setJumpY(up ? -26 : 0);
+        up = !up;
+        hopRef.current = setTimeout(doHop, up ? 340 : 180);
+      };
+      doHop();
+      const move = () => {
+        if (!alive.current) return;
+        const p = Math.min((Date.now() - t0) / dur, 1);
+        setPosX(sx + (ex - sx) * p);
+        if (p < 1) { rafRef.current = requestAnimationFrame(move); }
+        else {
+          clearTimeout(hopRef.current);
+          setJumpY(0); setVis(false);
+          schedule(5000 + Math.random() * 7000);
+        }
+      };
+      rafRef.current = requestAnimationFrame(move);
+    };
+    schedule(2000 + Math.random() * 2000);
+    return () => {
+      alive.current = false;
+      cancelAnimationFrame(rafRef.current);
+      clearTimeout(hopRef.current);
+      clearTimeout(nextRef.current);
+    };
+  }, []);
+
+  if (!vis) return null;
+  const c = "#c8a96e";
+  return ReactDOM.createPortal(
+    <div style={{
+      position:"fixed", left:posX, bottom:bottom,
+      zIndex:9998, pointerEvents:"none",
+      transform:`scaleX(${flipX?-1:1})`,
+      transformOrigin:"26px 66px",
+    }}>
+      <div style={{
+        transform:`translateY(${jumpY}px)`,
+        transition: jumpY < 0
+          ? "transform 0.14s cubic-bezier(.34,2.2,.64,1)"
+          : "transform 0.20s cubic-bezier(.22,.6,.36,1)",
+      }}>
+        <svg width="52" height="66" viewBox="0 0 80 100" fill="none">
+          <ellipse cx="28" cy="22" rx="9" ry="20" fill={c} stroke="#a07840" strokeWidth="1.5"/>
+          <ellipse cx="28" cy="22" rx="4" ry="14" fill="#c4867a" opacity=".6"/>
+          <ellipse cx="52" cy="22" rx="9" ry="20" fill={c} stroke="#a07840" strokeWidth="1.5"/>
+          <ellipse cx="52" cy="22" rx="4" ry="14" fill="#c4867a" opacity=".6"/>
+          <ellipse cx="40" cy="48" rx="22" ry="20" fill={c} stroke="#a07840" strokeWidth="1.5"/>
+          <circle cx="33" cy="45" r="4" fill="#2a1a0e"/>
+          <circle cx="47" cy="45" r="4" fill="#2a1a0e"/>
+          <circle cx="34.5" cy="43.5" r="1.5" fill="white"/>
+          <circle cx="48.5" cy="43.5" r="1.5" fill="white"/>
+          <ellipse cx="40" cy="52" rx="3.5" ry="2.5" fill="#b8706a"/>
+          <path d="M36 56 Q40 60 44 56" stroke="#a07840" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+          <ellipse cx="30" cy="54" rx="6" ry="3" fill="#c4867a" opacity=".3"/>
+          <ellipse cx="50" cy="54" rx="6" ry="3" fill="#c4867a" opacity=".3"/>
+          <ellipse cx="40" cy="78" rx="20" ry="18" fill={c} stroke="#a07840" strokeWidth="1.5"/>
+          <ellipse cx="26" cy="89" rx="8" ry="5" fill={c} stroke="#a07840" strokeWidth="1.2"/>
+          <ellipse cx="54" cy="89" rx="8" ry="5" fill={c} stroke="#a07840" strokeWidth="1.2"/>
+        </svg>
+      </div>
+    </div>,
+    document.body
+  );
+}
+// ── Confetti burst (canvas) ──────────────────────────────────────────────────
+const Confetti = () => {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = window.innerWidth;
+    const H = canvas.height = window.innerHeight;
+    const colors = ['#f59e0b','#10b981','#fbbf24','#ef4444','#3b82f6','#c8a96e'];
+    const pieces = Array.from({length:120}, () => ({
+      x: Math.random()*W, y: -20 - Math.random()*H*0.3,
+      r: 4+Math.random()*5, c: colors[Math.floor(Math.random()*colors.length)],
+      vy: 2+Math.random()*3, vx: -1.5+Math.random()*3,
+      rot: Math.random()*360, vr: -6+Math.random()*12,
+    }));
+    let raf, alive = true;
+    const draw = () => {
+      if (!alive) return;
+      ctx.clearRect(0,0,W,H);
+      pieces.forEach(p => {
+        p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot*Math.PI/180);
+        ctx.fillStyle=p.c; ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*1.6);
+        ctx.restore();
+      });
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    const timer = setTimeout(() => { alive=false; cancelAnimationFrame(raf); }, 3200);
+    return () => { alive=false; cancelAnimationFrame(raf); clearTimeout(timer); };
+  }, []);
+  return ReactDOM.createPortal(
+    <canvas ref={ref} style={{position:"fixed",inset:0,zIndex:9999,pointerEvents:"none"}}/>,
+    document.body
+  );
+};
+
+// ── Series Completion Modal ───────────────────────────────────────────────────
+const CompletionModal = ({ subject, onChoice }) => {
+  return ReactDOM.createPortal(
+    <>
+      <Confetti/>
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.78)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:24,animation:"fadeIn .25s ease"}}>
+        <div style={{background:"#1c1917",border:"2px solid #f59e0b55",borderRadius:24,padding:"28px 24px",maxWidth:340,width:"100%",textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,.6)"}}>
+          <div style={{fontSize:48,marginBottom:10}}>🎉</div>
+          <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:20,color:"#fbbf24",marginBottom:6}}>Congratulations!</div>
+          <div style={{fontFamily:"'Baloo 2',cursive",fontSize:14,color:"#fef3c7",marginBottom:14}}>You've completed it!</div>
+          <div style={{fontSize:12,color:"#78716c",marginBottom:18}}>"{subject.name}" finished its full review cycle 🥕</div>
+          <div style={{fontSize:13,color:"#a8a29e",marginBottom:16,fontFamily:"'Baloo 2',cursive"}}>Would you like to repeat this topic once a month?</div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={()=>onChoice(true)} style={{flex:1,padding:"12px",background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:12,color:"white",fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:14,cursor:"pointer"}}>Yes, monthly</button>
+            <button onClick={()=>onChoice(false)} style={{flex:1,padding:"12px",background:"#292524",border:"2px solid #44403c",borderRadius:12,color:"#a8a29e",fontFamily:"'Baloo 2',cursive",fontWeight:700,fontSize:14,cursor:"pointer"}}>No, done</button>
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body
+  );
+};
+
+// ── Subject Card ──────────────────────────────────────────────────────────────
+const SubjectCard = ({ subject, onStudy, onDelete }) => {
+  const due=isDue(subject); const tc=tagColor(subject.tag);
+  const daysUntil=Math.ceil((new Date(subject.nextReview)-new Date())/86400000);
+  return (
+    <div style={{background:"#1c1917",border:`2px solid ${due?"#f59e0b44":"#29252488"}`,borderLeft:`4px solid ${due?"#f59e0b":tc}`,borderRadius:16,padding:"14px 16px",transition:"transform .15s",animation:"fadeIn .3s ease"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+        <div style={{flex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5,flexWrap:"wrap"}}>
+            <span style={{padding:"2px 9px",borderRadius:99,fontSize:11,fontWeight:700,background:`${tc}22`,color:tc,border:`1px solid ${tc}55`,fontFamily:"'Baloo 2',cursive"}}>{subject.tag}</span>
+            {due&&<span style={{padding:"2px 9px",borderRadius:99,fontSize:11,fontWeight:700,background:"rgba(245,158,11,.15)",color:"#fbbf24",border:"1px solid rgba(245,158,11,.4)",fontFamily:"'Baloo 2',cursive",animation:"pulse 2s infinite"}}>⏰ Due</span>}
+          </div>
+          <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:17,color:"#fef3c7",lineHeight:1.2}}>{subject.name}</div>
+          {subject.notes&&<div style={{fontSize:12,color:"#78716c",marginTop:4,fontFamily:"Georgia,serif",fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:220}}>{subject.notes}</div>}
+        </div>
+        {onDelete&&<button onClick={()=>onDelete(subject.id)} style={{background:"none",border:"none",color:"#44403c",fontSize:18,cursor:"pointer",padding:"0 0 0 8px",transition:"color .15s"}} onMouseEnter={e=>e.target.style.color="#ef4444"} onMouseLeave={e=>e.target.style.color="#44403c"}>×</button>}
+      </div>
+      <div style={{marginBottom:10}}><CarrotBar stage={subject.stage}/></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{display:"flex",gap:12}}>
+          <span style={{fontSize:11,color:"#57534e",fontFamily:"'Baloo 2',cursive"}}>🕐 {Math.round(subject.totalTime/60)}m</span>
+          <span style={{fontSize:11,color:"#57534e",fontFamily:"'Baloo 2',cursive"}}>📚 {subject.sessions}</span>
+          {!due&&subject.seriesDone&&!subject.monthlyActive&&<span style={{fontSize:11,color:"#10b981",fontFamily:"'Baloo 2',cursive"}}>🏆 Mastered</span>}
+          {!due&&!(subject.seriesDone&&!subject.monthlyActive)&&daysUntil>0&&<span style={{fontSize:11,color:"#57534e",fontFamily:"'Baloo 2',cursive"}}>🗓 {daysUntil}d</span>}
+        </div>
+        {due&&onStudy&&<button onClick={()=>onStudy(subject)} style={{padding:"7px 16px",background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:10,color:"#1c1917",fontFamily:"'Baloo 2',cursive",fontSize:13,fontWeight:800,cursor:"pointer"}}>Study →</button>}
+      </div>
+    </div>
+  );
+};
+
+// ── Add Modal ─────────────────────────────────────────────────────────────────
+const AddModal = ({ onAdd, onClose, existingTags=[], t }) => {
+  const [name,setName]=useState(""); const [notes,setNotes]=useState("");
+  const [customTag,setCustomTag]=useState(""); const [selTag,setSelTag]=useState("");
+  const activeTag = customTag.trim() || selTag || "General";
+  const submit = () => { if(!name.trim())return; onAdd({id:Date.now(),name:name.trim(),notes:notes.trim(),tag:activeTag,stage:0,nextReview:todayMidnight(),totalTime:0,sessions:0,seriesDone:false,monthlyActive:false,monthlyCount:0}); onClose(); };
+  const inp = {width:"100%",background:"#0c0a09",border:"2px solid #44403c",borderRadius:12,padding:"12px 14px",color:"#fef3c7",fontFamily:"'Baloo 2',cursive",fontSize:15,outline:"none",transition:"border-color .2s"};
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:50,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:"#1c1917",borderRadius:"24px 24px 0 0",border:"2px solid #44403c",borderBottom:"none",padding:"24px 20px 44px",animation:"slideUp .3s cubic-bezier(.34,1.56,.64,1)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontFamily:"'Baloo 2',cursive",fontSize:20,fontWeight:800,color:"#fbbf24"}}>{t.addSubject}</div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"#78716c",fontSize:22,cursor:"pointer"}}>×</button>
+        </div>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,color:"#78716c",fontFamily:"'Baloo 2',cursive",letterSpacing:1,display:"block",marginBottom:6}}>{t.subjectName}</label>
+          <input autoFocus value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="e.g. Photosynthesis, WWII…" style={inp} onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor="#44403c"}/>
+        </div>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,color:"#78716c",fontFamily:"'Baloo 2',cursive",letterSpacing:1,display:"block",marginBottom:6}}>{t.notesLabel}</label>
+          <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Key points, formulas…" rows={3} style={{...inp,resize:"none"}} onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor="#44403c"}/>
+        </div>
+        <div style={{marginBottom:22}}>
+          <label style={{fontSize:11,color:"#78716c",fontFamily:"'Baloo 2',cursive",letterSpacing:1,display:"block",marginBottom:8}}>{t.category}</label>
+          {existingTags.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:10}}>{existingTags.map(tag=>{const tc=tagColor(tag);const sel=selTag===tag&&!customTag.trim();return(<button key={tag} onClick={()=>{setSelTag(tag);setCustomTag("");}} style={{padding:"5px 13px",borderRadius:99,border:`2px solid ${sel?tc:"#44403c"}`,background:sel?`${tc}22`:"transparent",color:sel?tc:"#78716c",fontFamily:"'Baloo 2',cursive",fontSize:13,fontWeight:700,cursor:"pointer"}}>{tag}</button>);})}
+          </div>}
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <input value={customTag} onChange={e=>setCustomTag(e.target.value)} placeholder="Type a category…" maxLength={24} style={{...inp,padding:"9px 14px",fontSize:14,flex:1,borderColor:customTag.trim()?"#fbbf24":"#44403c"}} onFocus={e=>e.target.style.borderColor="#fbbf24"} onBlur={e=>e.target.style.borderColor=customTag.trim()?"#fbbf24":"#44403c"}/>
+            {customTag.trim()&&<div style={{padding:"5px 12px",borderRadius:99,background:`${tagColor(customTag.trim())}22`,border:`2px solid ${tagColor(customTag.trim())}`,color:tagColor(customTag.trim()),fontFamily:"'Baloo 2',cursive",fontSize:13,fontWeight:700,whiteSpace:"nowrap"}}>{customTag.trim()}</div>}
+          </div>
+        </div>
+        <button onClick={submit} style={{width:"100%",padding:"14px",background:name.trim()?"linear-gradient(135deg,#f59e0b,#d97706)":"#292524",border:"none",borderRadius:14,color:name.trim()?"#1c1917":"#57534e",fontFamily:"'Baloo 2',cursive",fontSize:17,fontWeight:800,cursor:name.trim()?"pointer":"default"}}>{t.plant}</button>
+      </div>
+    </div>
+  );
+};
+
+
+// ── Live Timer Pill ───────────────────────────────────────────────────────────
+// Shows in header while a session is running and minimized
+const LiveTimerPill = ({ subject, onReturn }) => {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const TIMER_KEY = "loopy_timer_" + subject.id;
+    // Read startedAt from storage and tick
+    let startedAt = null;
+    const init = async () => {
+      try {
+        const _st2=_ls?localStorage.getItem(TIMER_KEY):(_mem[TIMER_KEY]||null);
+        if(_st2){const d=JSON.parse(_st2);startedAt=d.startedAt;setElapsed(Math.floor((Date.now()-startedAt)/1000));}
+      } catch {}
+    };
+    init();
+    const id = setInterval(async () => {
+      if (startedAt) {
+        setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+      } else {
+        // try again — storage might not have responded yet
+        try {
+          const _st3=_ls?localStorage.getItem("loopy_timer_"+subject.id):(_mem["loopy_timer_"+subject.id]||null);
+          if(_st3){const d=JSON.parse(_st3);startedAt=d.startedAt;}
+        } catch {}
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [subject.id]);
+
+  const tc = tagColor(subject.tag);
+  return (
+    <button
+      onClick={onReturn}
+      style={{
+        marginTop:10, width:"100%", padding:"10px 14px",
+        background:"linear-gradient(135deg,rgba(59,130,246,.18),rgba(37,99,235,.1))",
+        border:"2px solid rgba(59,130,246,.45)", borderRadius:12,
+        display:"flex", alignItems:"center", gap:10,
+        cursor:"pointer", animation:"fadeIn .3s ease",
+        fontFamily:"'Baloo 2',cursive",
+      }}
+    >
+      {/* Pulsing dot */}
+      <span style={{width:8,height:8,borderRadius:"50%",background:"#3b82f6",boxShadow:"0 0 0 0 rgba(59,130,246,.5)",animation:"pingPulse 1.4s ease-in-out infinite",flexShrink:0,display:"inline-block"}}/>
+      <span style={{fontSize:12,fontWeight:700,color:"#93c5fd",flex:1,textAlign:"left",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+        {subject.name}
+      </span>
+      <span style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:15,color:"#dbeafe",letterSpacing:1,flexShrink:0}}>
+        {fmt(elapsed)}
+      </span>
+      <span style={{fontSize:11,color:"#60a5fa",flexShrink:0}}>↑ tap to return</span>
+    </button>
+  );
+};
+
+// ── Study Session ─────────────────────────────────────────────────────────────
+const StudySession = ({ subject, onComplete, onCancel, onMinimize, onTick, t }) => {
+  const [phase,setPhase]=useState("ready"); const [elapsed,setElapsed]=useState(0); const [running,setRunning]=useState(false); const [hopY,setHopY]=useState(0);
+  const timerRef=useRef(null); const hopRef=useRef(null);
+  // startedAt persists across navigation — we store wall-clock start time
+  const startedAtRef=useRef(null); const baseElapsedRef=useRef(0);
+
+  const TIMER_KEY = "loopy_timer_"+subject.id;
+
+  // On mount: restore any saved timer from persistent storage (survives tab close)
+  useEffect(()=>{
+    (async()=>{
+      try {
+        const _st1=_ls?localStorage.getItem(TIMER_KEY):(_mem[TIMER_KEY]||null);
+        if(_st1){const {startedAt,base}=JSON.parse(_st1);
+          baseElapsedRef.current = base;
+          startedAtRef.current = startedAt;
+          const current = base + Math.floor((Date.now()-startedAt)/1000);
+          setElapsed(current); setPhase("studying"); setRunning(true);
+        }
+      } catch {}
+    })();
+  },[]);
+
+  useEffect(()=>{
+    if(running){
+      // Record wall-clock start time so elapsed survives any closure/reopening
+      if(!startedAtRef.current) startedAtRef.current = Date.now()-baseElapsedRef.current*1000;
+      {const _s=JSON.stringify({startedAt:startedAtRef.current,base:baseElapsedRef.current});_ls?localStorage.setItem(TIMER_KEY,_s):(_mem[TIMER_KEY]=_s);}
+      timerRef.current=setInterval(()=>{
+        const now=Math.floor((Date.now()-startedAtRef.current)/1000);
+        setElapsed(now);
+        if(onTick) onTick(now);
+      },500);
+    } else {
+      clearInterval(timerRef.current);
+      if(startedAtRef.current){
+        baseElapsedRef.current=elapsed;
+        startedAtRef.current=null;
+        _ls?localStorage.removeItem(TIMER_KEY):(delete _mem[TIMER_KEY]);
+      }
+    }
+    return()=>clearInterval(timerRef.current);
+  },[running]);
+
+  useEffect(()=>{ if(phase!=="studying"||!running){setHopY(0);clearTimeout(hopRef.current);return;} const doHop=()=>{setHopY(-30);setTimeout(()=>setHopY(0),200);hopRef.current=setTimeout(doHop,500);}; hopRef.current=setTimeout(doHop,300); return()=>clearTimeout(hopRef.current); },[phase,running]);
+  const circ=2*Math.PI*54; const ringPct=Math.min((elapsed/3600)*100,100); const nextGap=subject.monthlyActive?30:(subject.stage>=INTERVALS.length-1?null:INTERVALS[subject.stage+1]);
+  return (
+    <div style={{minHeight:"100vh",background:"#0c0a09",color:"#fef3c7",fontFamily:"'Baloo 2',cursive",maxWidth:"var(--app-w,100%)",margin:"0 auto",display:"flex",flexDirection:"column",alignItems:"center",padding:"24px 20px 40px",animation:"fadeIn .25s ease"}}>
+      <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <button onClick={onCancel} style={{background:"transparent",border:"1px solid #44403c",borderRadius:10,padding:"6px 14px",color:"#a8a29e",cursor:"pointer",fontFamily:"'Baloo 2',cursive",fontSize:13,fontWeight:700}}>{t.back}</button>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{padding:"4px 14px",borderRadius:99,background:`${tagColor(subject.tag)}22`,border:`1px solid ${tagColor(subject.tag)}55`,color:tagColor(subject.tag),fontFamily:"'Baloo 2',cursive",fontSize:12,fontWeight:700}}>{subject.tag}</div>
+          {onMinimize && phase==="studying" && (
+            <button onClick={onMinimize} title="Keep timer running, browse app" style={{background:"#1c1917",border:"1px solid #44403c",borderRadius:10,padding:"6px 10px",color:"#78716c",cursor:"pointer",fontSize:16,lineHeight:1}} onMouseEnter={e=>{e.currentTarget.style.borderColor="#f59e0b";e.currentTarget.style.color="#fbbf24";}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#44403c";e.currentTarget.style.color="#78716c";}}>⬇</button>
+          )}
+        </div>
+      </div>
+      <div style={{textAlign:"center",width:"100%",marginBottom:14}}>
+        <div style={{fontWeight:800,fontSize:24,color:"#fef3c7",lineHeight:1.2,marginBottom:10}}>{subject.name}</div>
+        {subject.notes&&<div style={{padding:"12px 16px",background:"#1c1917",border:"1px solid #29252499",borderRadius:14,color:"#a8a29e",fontSize:13,fontFamily:"Georgia,serif",fontStyle:"italic",lineHeight:1.6,textAlign:"left"}}>{subject.notes}</div>}
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+        <span style={{fontSize:12,color:"#57534e"}}>{t.reviewNum}{subject.stage+1}</span>
+        <CarrotBar stage={subject.stage}/>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:4}}>
+        <div style={{transform:`translateY(${hopY}px)`,transition:hopY<0?"transform 0.12s cubic-bezier(.34,2,.64,1)":"transform 0.22s cubic-bezier(.22,.6,.36,1)"}}>
+          <Rabbit mood={phase==="done"?"happy":phase==="studying"?"focused":"idle"} size={88}/>
+        </div>
+        <div style={{width:110,height:6,background:"linear-gradient(90deg,#15803d,#16a34a,#15803d)",borderRadius:99,marginTop:4,opacity:.6}}/>
+      </div>
+      <div style={{position:"relative",margin:"20px 0"}}>
+        <svg width={140} height={140} style={{transform:"rotate(-90deg)"}}>
+          <circle cx="70" cy="70" r="54" fill="none" stroke="#292524" strokeWidth="8"/>
+          <circle cx="70" cy="70" r="54" fill="none" stroke={phase==="done"?"#10b981":running?"#f59e0b":"#44403c"} strokeWidth="8" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ-(ringPct/100)*circ} style={{transition:"stroke-dashoffset .8s ease,stroke .3s"}}/>
+        </svg>
+        <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+          <div style={{fontWeight:800,fontSize:34,color:"#fef3c7",lineHeight:1}}>{fmt(elapsed)}</div>
+          <div style={{fontSize:11,color:"#78716c",marginTop:3}}>{phase==="studying"?(running?"●●●":"⏸"):phase==="done"?"✓":"▶"}</div>
+        </div>
+      </div>
+      <div style={{width:"100%",display:"flex",flexDirection:"column",gap:10}}>
+        {phase==="ready"&&<button onClick={()=>{setPhase("studying");setRunning(true);}} style={{padding:"16px",background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:16,color:"#1c1917",fontFamily:"'Baloo 2',cursive",fontSize:18,fontWeight:800,cursor:"pointer"}}>{t.startStudying}</button>}
+        {phase==="studying"&&<><button onClick={()=>setRunning(r=>!r)} style={{padding:"14px",background:running?"#1c1917":"linear-gradient(135deg,#3b82f6,#2563eb)",border:`2px solid ${running?"#44403c":"#3b82f6"}`,borderRadius:14,color:running?"#a8a29e":"white",fontFamily:"'Baloo 2',cursive",fontSize:16,fontWeight:700,cursor:"pointer"}}>{running?t.pause:t.resume}</button><button onClick={()=>{setRunning(false);setPhase("done");}} style={{padding:"14px",background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:14,color:"white",fontFamily:"'Baloo 2',cursive",fontSize:16,fontWeight:700,cursor:"pointer"}}>{t.markStudied}</button></>}
+        {phase==="done"&&<button onClick={()=>onComplete(elapsed)} style={{padding:"16px",background:"linear-gradient(135deg,#10b981,#059669)",border:"none",borderRadius:16,color:"white",fontFamily:"'Baloo 2',cursive",fontSize:17,fontWeight:800,cursor:"pointer"}}>{nextGap!=null?<>{t.saveNext} {nextGap} {t.days}</>:"🎉 Save & Complete"}</button>}
+      </div>
+    </div>
+  );
+};
+
+// ── Today Tab ─────────────────────────────────────────────────────────────────
+const TodayTab = ({ subjects, onStudy, onDelete, t }) => {
+  const dueList=subjects.filter(isDue);
+  const upcoming=subjects.filter(s=>!isDue(s)).sort((a,b)=>new Date(a.nextReview)-new Date(b.nextReview));
+  return (
+    <div style={{padding:"4px 20px 0"}}>
+      <div style={{background:dueList.length>0?"linear-gradient(135deg,rgba(245,158,11,.12),rgba(217,119,6,.04))":"linear-gradient(135deg,rgba(16,185,129,.1),rgba(5,150,105,.04))",border:`2px solid ${dueList.length>0?"#f59e0b55":"#10b98155"}`,borderRadius:20,padding:"16px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:14}}>
+        <div style={{flexShrink:0}}><Rabbit mood={dueList.length>0?"focused":"happy"} size={50}/></div>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:800,fontSize:24,color:dueList.length>0?"#fbbf24":"#34d399",lineHeight:1}}>{dueList.length>0?`${dueList.length} ${t.dueToday}`:t.allCaughtUp}</div>
+          <div style={{fontSize:13,color:"#a8a29e",marginTop:3}}>{dueList.length>0?t.rabbitWaiting:t.noReviews}</div>
+          {dueList.length>0&&<button onClick={()=>onStudy(dueList[0])} style={{marginTop:10,padding:"8px 18px",background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:10,color:"#1c1917",fontWeight:800,fontSize:14,cursor:"pointer"}}>{t.startReview}</button>}
+        </div>
+      </div>
+      {dueList.length>0&&<><div style={{fontSize:11,color:"#78716c",fontWeight:700,letterSpacing:1.5,marginBottom:10}}>{t.dueNow.toUpperCase()}</div><div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>{dueList.map(s=><SubjectCard key={s.id} subject={s} onStudy={onStudy} onDelete={onDelete}/>)}</div></>}
+      {upcoming.length>0&&<><div style={{fontSize:11,color:"#78716c",fontWeight:700,letterSpacing:1.5,marginBottom:10}}>{t.comingUp.toUpperCase()}</div><div style={{display:"flex",flexDirection:"column",gap:10}}>{upcoming.slice(0,5).map(s=><SubjectCard key={s.id} subject={s} onStudy={onStudy} onDelete={onDelete}/>)}</div></>}
+      {subjects.length===0&&<div style={{textAlign:"center",padding:"48px 20px"}}><Rabbit mood="idle"/><div style={{fontWeight:800,fontSize:17,color:"#57534e",marginTop:12}}>{t.noSubjects}</div><div style={{fontSize:13,color:"#44403c",marginTop:4}}>{t.addFirst}</div></div>}
+    </div>
+  );
+};
+
+// ── Subjects Tab ──────────────────────────────────────────────────────────────
+const SubjectsTab = ({ subjects, onStudy, onDelete, t }) => {
+  const [filterTag,setFilterTag]=useState("All"); const [search,setSearch]=useState(""); const [sort,setSort]=useState("due");
+  const allTags=["All",...Array.from(new Set(subjects.map(s=>s.tag))).filter(Boolean).sort()];
+  const isFinished = s => s.seriesDone && !s.monthlyActive;
+  const matchesFilter = s => (filterTag==="All"||s.tag===filterTag) && (!search||s.name.toLowerCase().includes(search.toLowerCase())||(s.notes||"").toLowerCase().includes(search.toLowerCase()));
+  const filtered=subjects.filter(s=>!isFinished(s)).filter(matchesFilter).sort((a,b)=>{if(sort==="due")return(isDue(a)?0:1)-(isDue(b)?0:1)||new Date(a.nextReview)-new Date(b.nextReview);if(sort==="name")return a.name.localeCompare(b.name);if(sort==="stage")return b.stage-a.stage;return b.sessions-a.sessions;});
+  const completed=subjects.filter(isFinished).filter(matchesFilter).sort((a,b)=>a.name.localeCompare(b.name));
+  const dueCount=subjects.filter(isDue).length;
+  return (
+    <div style={{padding:"4px 20px 0"}}>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        {[{label:t.total,value:subjects.length,color:"#a8a29e"},{label:t.due,value:dueCount,color:"#fbbf24"},{label:t.mastered,value:subjects.filter(s=>s.stage>=5).length,color:"#10b981"}].map(s=>(
+          <div key={s.label} style={{flex:1,background:"#1c1917",border:"1px solid #292524",borderRadius:12,padding:"10px 0",textAlign:"center"}}>
+            <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:20,color:s.color}}>{s.value}</div>
+            <div style={{fontSize:10,color:"#57534e",marginTop:1}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{position:"relative",marginBottom:12}}>
+        <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14,color:"#44403c"}}>🔍</span>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t.searchPlaceholder} style={{width:"100%",background:"#1c1917",border:"2px solid #292524",borderRadius:12,padding:"10px 14px 10px 36px",color:"#fef3c7",fontFamily:"'Baloo 2',cursive",fontSize:14,outline:"none"}}/>
+      </div>
+      <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:10,scrollbarWidth:"none"}}>
+        {allTags.map(tag=>{const tc=tag==="All"?"#fbbf24":tagColor(tag);const sel=filterTag===tag;return(<button key={tag} onClick={()=>setFilterTag(tag)} style={{padding:"4px 12px",borderRadius:99,whiteSpace:"nowrap",flexShrink:0,border:`2px solid ${sel?tc:"#292524"}`,background:sel?`${tc}22`:"transparent",color:sel?tc:"#57534e",fontFamily:"'Baloo 2',cursive",fontWeight:700,fontSize:12,cursor:"pointer"}}>{tag}</button>);})}
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:16}}>
+        {[{id:"due",label:t.sortDue},{id:"name",label:t.sortName},{id:"stage",label:t.sortStage},{id:"recent",label:t.sortActive}].map(s=>(
+          <button key={s.id} onClick={()=>setSort(s.id)} style={{padding:"4px 10px",borderRadius:8,border:`1px solid ${sort===s.id?"#f59e0b44":"#292524"}`,background:sort===s.id?"rgba(245,158,11,.1)":"transparent",color:sort===s.id?"#fbbf24":"#57534e",fontFamily:"'Baloo 2',cursive",fontSize:11,fontWeight:700,cursor:"pointer"}}>{s.label}</button>
+        ))}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {filtered.map(s=><SubjectCard key={s.id} subject={s} onStudy={onStudy} onDelete={onDelete}/>)}
+        {filtered.length===0&&completed.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:"#44403c",fontFamily:"'Baloo 2',cursive"}}><div style={{fontSize:28,marginBottom:8}}>🌿</div>{search?"No results":"No subjects yet"}</div>}
+      </div>
+      {completed.length>0&&(
+        <div style={{marginTop:26}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+            <div style={{fontSize:11,color:"#10b981",fontWeight:700,letterSpacing:1.5}}>✅ COMPLETED</div>
+            <div style={{fontSize:11,color:"#57534e"}}>({completed.length})</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {completed.map(s=><SubjectCard key={s.id} subject={s} onStudy={onStudy} onDelete={onDelete}/>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Garden Canvas Rabbits ─────────────────────────────────────────────────────
+const RCOLS=["#c8a96e","#8db89a","#c8a96e","#fecaca","#e9d5ff"];
+const GardenRabbitsCanvas = ({ width, height }) => {
+  const canvasRef=useRef(null); const stateRef=useRef(null);
+  useEffect(()=>{
+    if(!width||!height)return;
+    const canvas=canvasRef.current; if(!canvas)return;
+    const ctx=canvas.getContext("2d");
+    if(!stateRef.current){
+      stateRef.current=RCOLS.map((color,i)=>({x:30+Math.random()*(width-60),y:60+Math.random()*(height-80),tx:30+Math.random()*(width-60),ty:60+Math.random()*(height-80),color,speed:0.5+Math.random()*0.4,flip:false,waitUntil:Date.now()+i*600}));
+    }
+    const rabbits=stateRef.current;
+    const drawR=(ctx,x,y,hy,color,flip)=>{
+      ctx.save(); ctx.translate(x,y+hy); const sc=0.3; ctx.scale(flip?-sc:sc,sc); ctx.translate(-40,-90);
+      const E=(cx,cy,rx,ry,fill,str,sw=2,a=1)=>{ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.globalAlpha=a;ctx.fillStyle=fill;ctx.fill();if(str){ctx.strokeStyle=str;ctx.lineWidth=sw;ctx.stroke();}ctx.globalAlpha=1;};
+      E(28,22,9,20,color,"#d97706"); E(28,22,4,14,"#c4867a",null,0,.7);
+      E(52,22,9,20,color,"#d97706"); E(52,22,4,14,"#c4867a",null,0,.7);
+      E(40,48,22,20,color,"#d97706"); E(40,80,20,18,color,"#d97706");
+      E(33,45,4,4,"#1c1917"); E(47,45,4,4,"#1c1917");
+      E(34.5,43.5,1.5,1.5,"white"); E(48.5,43.5,1.5,1.5,"white");
+      E(40,52,3.5,2.5,"#b8706a"); E(26,90,8,5,color,"#d97706",1.5); E(54,90,8,5,color,"#d97706",1.5);
+      ctx.restore();
+    };
+    let animId;
+    const animate=()=>{
+      ctx.clearRect(0,0,width,height);
+      const now=Date.now();
+      rabbits.forEach(r=>{
+        if(now<r.waitUntil){drawR(ctx,r.x,r.y,0,r.color,r.flip);return;}
+        const dx=r.tx-r.x,dy=r.ty-r.y,dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<2){r.waitUntil=now+500+Math.random()*1500;r.tx=30+Math.random()*(width-60);r.ty=60+Math.random()*(height-80);drawR(ctx,r.x,r.y,0,r.color,r.flip);return;}
+        r.flip=dx<0; r.x+=(dx/dist)*r.speed; r.y+=(dy/dist)*r.speed;
+        const hop=-Math.max(0,Math.sin(((now%420)/420)*Math.PI))*10;
+        drawR(ctx,r.x,r.y,hop,r.color,r.flip);
+      });
+      animId=requestAnimationFrame(animate);
+    };
+    animate();
+    return()=>cancelAnimationFrame(animId);
+  },[width,height]);
+  return <canvas ref={canvasRef} width={width} height={height} style={{position:"absolute",top:0,left:0,pointerEvents:"none"}}/>;
+};
+
+// ── Garden Tab ────────────────────────────────────────────────────────────────
+// ── Carrot shape helper — tapered, realistic silhouette ─────────────────────
+const carrotPath = (bw, h) => {
+  const w = bw / 2;
+  return `M ${-w} ${-h} C ${-w*1.2} ${-h*0.55} ${-w*0.3} ${-h*0.05} 0 4 C ${w*0.3} ${-h*0.05} ${w*1.2} ${-h*0.55} ${w} ${-h} Q 0 ${-h-bw*0.4} ${-w} ${-h} Z`;
+};
+
+const GardenTab = ({ subjects, onStudy, studying, liveElapsed, t }) => {
+  const [tooltip,setTooltip]=useState(null);
+  const [basketOpen,setBasketOpen]=useState(false);
+  const [fullscreen,setFullscreen]=useState(false);
+  const [dims,setDims]=useState({w:380});
+  const [fsDims,setFsDims]=useState({w:360,h:600});
+  const ref=useRef(null);
+  useEffect(()=>{ const u=()=>{ if(ref.current){setDims({w:ref.current.offsetWidth});} }; u(); window.addEventListener("resize",u); return()=>window.removeEventListener("resize",u); },[]);
+  useEffect(()=>{
+    if(!fullscreen) return;
+    const u=()=>setFsDims({w:Math.min(window.innerWidth-24,560),h:window.innerHeight-110});
+    u(); window.addEventListener("resize",u); return()=>window.removeEventListener("resize",u);
+  },[fullscreen]);
+
+  // liveElapsed prop is updated every second by the parent via StudySession onTick
+
+  const isFinished = s => s.seriesDone && !s.monthlyActive;
+  const growing = subjects.filter(s=>!isFinished(s));
+  const completed = subjects.filter(isFinished);
+
+  const hts=[18,26,36,48,58,66];
+  const lerp=(rot)=>{const r1=[249,115,22],r2=[101,67,33];return`rgb(${r1.map((v,i)=>Math.round(v+(r2[i]-v)*rot)).join(",")})`;};
+
+  const layout = (gWval) => {
+    const COLS=Math.max(3,Math.min(6,Math.ceil(Math.sqrt(growing.length*1.4))));
+    const cellW=(gWval-40)/COLS;
+    const rows=Math.ceil(growing.length/COLS);
+    const gH=Math.max(420,100+rows*90+60);
+    const positions=growing.map((s,i)=>{const col=i%COLS,row=Math.floor(i/COLS),jx=(Math.sin(s.id*7.3)*.28)*cellW,jy=(Math.cos(s.id*3.7)*.28)*40;return{x:20+col*cellW+cellW/2+jx,y:85+row*90+jy};});
+    return { COLS, cellW, rows, gH, positions };
+  };
+
+  const drawCarrot=(s,pos,scale=1,isFs=false,sfx="n")=>{
+    const overdue=Math.max(0,Math.floor((new Date()-new Date(s.nextReview))/86400000));
+    const rot=Math.min(overdue/10,1);
+    const h=hts[Math.min(s.stage,5)]*scale; const bw=(10+Math.min(s.stage,5)*2)*scale;
+    const {x,y}=pos;
+    const lc=rot>.6?`rgba(101,120,40,${1-rot*.7})`:rot>.3?"#7ea82a":"#16a34a";
+    const path=carrotPath(bw,h);
+
+    return (
+      <g key={s.id} transform={`translate(${x},${y})`} onClick={(e)=>{e.stopPropagation();setTooltip(tooltip?.id===s.id?null:{...s,x,y,rot,overdue});}} style={{cursor:"pointer"}}>
+        <g transform={rot>.4?"rotate(15,0,0)":""}>
+          {[-50,-22,0,22,50].map((ang,li)=>{
+            const len=((li===2?16:13)+Math.min(s.stage,5)*1.6)*scale;
+            const rad=ang*Math.PI/180;
+            const tipx=Math.sin(rad)*len*0.55, tipy=-h-4-Math.cos(rad)*len;
+            return <path key={li} d={`M0,${-h-2} Q${tipx*0.4},${-h-2-len*0.5} ${tipx},${tipy} Q${tipx*0.6},${-h-2-len*0.3} 0,${-h-2}`} fill={lc} opacity={0.95}/>;
+          })}
+        </g>
+        <path d={path} fill={`url(#cb_${sfx})`}/>
+        <path d={path} fill={`url(#cbf_${sfx})`} opacity={rot}/>
+        {[0.25,0.45,0.65,0.82].map((tt,ri)=>{const yy=-h+h*tt*0.92; const ww=(bw/2)*(1-tt*0.75); return <path key={ri} d={`M${-ww},${yy} Q0,${yy+3*scale} ${ww},${yy}`} stroke="rgba(120,50,10,0.35)" strokeWidth={1*scale} fill="none"/>;})}
+        <ellipse cx={-bw*0.18} cy={-h*0.6} rx={bw*0.12} ry={h*0.32} fill="rgba(255,255,255,0.3)"/>
+        <ellipse cx="0" cy={3*scale} rx={bw/2+3*scale} ry={3.5*scale} fill="#3d2a18" opacity=".5"/>
+
+        <rect x={-bw} y={-h-22*scale} width={bw*2} height={h+28*scale} fill="transparent"/>
+      </g>
+    );
+  };
+
+  const drawBasket=(gWval,gHval,count,scale=1,sfx="n")=>{
+    if(count===0) return null;
+    const bx=gWval-46*scale, by=gHval-14*scale;
+    return (
+      <g transform={`translate(${bx},${by})`} onClick={(e)=>{e.stopPropagation();setBasketOpen(o=>!o);}} style={{cursor:"pointer"}}>
+        {[-10,-2,7].map((dx,ci)=>(
+          <g key={ci} transform={`translate(${dx*scale},${-22*scale}) rotate(${(ci-1)*14})`}>
+            <path d={carrotPath(8*scale,14*scale)} fill={`url(#cb_${sfx})`}/>
+            <path d={`M0,-14 L-3,-21 M0,-14 L3,-21 M0,-14 L0,-22`} stroke="#16a34a" strokeWidth={1.4*scale} strokeLinecap="round" fill="none"/>
+          </g>
+        ))}
+        <path d={`M${-26*scale},0 L${26*scale},0 L${20*scale},${-22*scale} L${-20*scale},${-22*scale} Z`} fill="#8a5a2e" stroke="#5c3d1e" strokeWidth={1.5*scale}/>
+        {[0.3,0.55,0.8].map((tt,wi)=><line key={wi} x1={(-26+tt*6)*scale} y1={-tt*22*scale} x2={(26-tt*6)*scale} y2={-tt*22*scale} stroke="#5c3d1e" strokeWidth={1*scale} opacity={0.6}/>)}
+        <ellipse cx="0" cy={-22*scale} rx={21*scale} ry={4*scale} fill="#a9744a" stroke="#5c3d1e" strokeWidth={1*scale}/>
+        <circle cx={20*scale} cy={-28*scale} r={9*scale} fill="#f59e0b" stroke="#1c1917" strokeWidth="1.5"/>
+        <text x={20*scale} y={-25*scale} textAnchor="middle" fontSize={9*scale} fontWeight="800" fill="#1c1917" fontFamily="'Baloo 2',cursive">{count}</text>
+      </g>
+    );
+  };
+
+  const renderScene = (gWval, gHval, posArr, scale, isFs, sfx) => {
+    const rows = Math.ceil(growing.length/Math.max(3,Math.min(6,Math.ceil(Math.sqrt(growing.length*1.4)))));
+    return (
+      <svg width={gWval} height={gHval} style={{display:"block"}} onClick={()=>{ if(isFs){ setFullscreen(false); } else { setFullscreen(true); } setTooltip(null); setBasketOpen(false); }}>
+        <defs>
+          <linearGradient id={`sky_${sfx}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0c1a0f"/><stop offset="100%" stopColor="#1a2e1a"/></linearGradient>
+          <linearGradient id={`gnd_${sfx}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3d6b35"/><stop offset="40%" stopColor="#2d4f28"/><stop offset="100%" stopColor="#1a2e1a"/></linearGradient>
+          <linearGradient id={`cb_${sfx}`} x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#ffb86b"/><stop offset="45%" stopColor="#f97316"/><stop offset="100%" stopColor="#c2540a"/></linearGradient>
+          <linearGradient id={`cbf_${sfx}`} x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#a3793f"/><stop offset="45%" stopColor="#7c5430"/><stop offset="100%" stopColor="#5c3d1e"/></linearGradient>
+        </defs>
+        <rect width={gWval} height={gHval} fill={`url(#sky_${sfx})`}/>
+        <rect y={50} width={gWval} height={gHval-50} fill={`url(#gnd_${sfx})`}/>
+        {[...Array(rows+2)].map((_,i)=><ellipse key={i} cx={gWval/2} cy={90+i*90} rx={gWval/2-10} ry={14} fill="#2a1f14" opacity=".35"/>)}
+        {[...Array(18)].map((_,i)=><circle key={i} cx={(i*137.5)%gWval} cy={5+(i*31)%40} r={.8+Math.sin(i)*.5} fill="white" opacity={.3+Math.sin(i*2)*.25}/>)}
+        <circle cx={gWval-55} cy={26} r={13} fill="#fef3c7" opacity=".8"/>
+        <circle cx={gWval-49} cy={22} r={10} fill="#1a2e1a" opacity=".9"/>
+        {[...Array(24)].map((_,i)=><line key={i} x1={8+(i*(gWval/24))} y1={52} x2={6+(i*(gWval/24))+Math.sin(i)*4} y2={36+Math.sin(i*1.3)*4} stroke="#4a7c40" strokeWidth="2" strokeLinecap="round" opacity=".7"/>)}
+        {[...Array(Math.floor(gWval/28)+1)].map((_,i)=><g key={i} transform={`translate(${i*28+4},0)`}><rect x="0" y="42" width="5" height="20" rx="1" fill="#5c3d1e" opacity=".7"/><polygon points="2.5,36 -1,42 6,42" fill="#6b4a26" opacity=".7"/></g>)}
+        {[...Array(Math.floor(gWval/28))].map((_,i)=><rect key={i} x={i*28+4} y="48" width="28" height="3" rx="1" fill="#5c3d1e" opacity=".6"/>)}
+        {growing.map((s,i)=>drawCarrot(s,posArr[i],scale,isFs,sfx))}
+        {drawBasket(gWval,gHval,completed.length,scale,sfx)}
+      </svg>
+    );
+  };
+
+  const { gH, positions } = layout(dims.w-24);
+  const gW = dims.w-24;
+  const fsW = fsDims.w, fsH = fsDims.h;
+  const fsLayout = layout(fsW);
+  const fsScale = Math.min(1.6, Math.max(1, fsW/gW));
+
+  const fmtDur = (secs) => { if(!secs) return "0m"; const h=Math.floor(secs/3600),m=Math.floor((secs%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; };
+  const tooltipBox = (tt, boundW, boundH) => (
+    <div style={{position:"absolute",left:Math.min(tt.x-10,boundW-190),top:Math.max(tt.y-hts[Math.min(tt.stage,5)]-80,10),background:"#1c1917",border:`2px solid ${tagColor(tt.tag)}`,borderRadius:14,padding:"10px 14px",minWidth:160,boxShadow:"0 8px 24px rgba(0,0,0,.6)",animation:"fadeIn .15s ease",zIndex:10,pointerEvents:"none"}}>
+      <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:14,color:"#fef3c7",marginBottom:3}}>{tt.name}</div>
+      <div style={{fontSize:11,color:tagColor(tt.tag),marginBottom:6}}>{tt.tag}</div>
+      <CarrotBar stage={tt.stage}/>
+      <div style={{marginTop:6,fontSize:11,color:isDue(tt)?"#fbbf24":"#57534e",fontFamily:"'Baloo 2',cursive"}}>{isDue(tt)?`⏰ ${tt.overdue>0?tt.overdue+"d overdue":"today"}`:`🗓 ${Math.ceil((new Date(tt.nextReview)-new Date())/86400000)}d`}</div>
+      <div style={{marginTop:4,display:"flex",gap:10,fontSize:11,color:"#78716c",fontFamily:"'Baloo 2',cursive"}}>
+        <span>🕐 {fmtDur(tt.totalTime)}</span>
+        <span>📚 {tt.sessions} {tt.sessions===1?"session":"sessions"}</span>
+      </div>
+      {isDue(tt)&&<button onClick={()=>{setTooltip(null);setFullscreen(false);onStudy(tt);}} style={{marginTop:8,width:"100%",padding:"6px",background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:8,color:"#1c1917",fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:12,cursor:"pointer",pointerEvents:"all"}}>{t.studyNow}</button>}
+    </div>
+  );
+
+  const basketBox = () => (
+    <div style={{position:"absolute",right:10,bottom:46,background:"#1c1917",border:"2px solid #f59e0b55",borderRadius:14,padding:"10px 14px",minWidth:170,maxWidth:230,boxShadow:"0 8px 24px rgba(0,0,0,.6)",animation:"fadeIn .15s ease",zIndex:10}}>
+      <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:13,color:"#fbbf24",marginBottom:6}}>🧺 Harvested ({completed.length})</div>
+      <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:140,overflowY:"auto"}}>
+        {completed.map(s=><div key={s.id} style={{fontSize:12,color:"#a8a29e"}}>🥕 {s.name}</div>)}
+      </div>
+    </div>
+  );
+
+  const totalStudyTime = subjects.reduce((a,s)=>a+s.totalTime,0);
+  const fmtDuration = (sec) => { const h=Math.floor(sec/3600), m=Math.round((sec%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; };
+
+  return (
+    <div ref={ref} style={{padding:"0 0 20px",position:"relative"}}>
+      <div style={{padding:"0 20px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:16,color:"#fbbf24"}}>🌱 {t.gardenTitle}</div>
+        <div style={{fontSize:11,color:"#57534e",fontFamily:"'Baloo 2',cursive"}}>{subjects.length}</div>
+      </div>
+      <div style={{margin:"0 12px",borderRadius:20,overflow:"hidden",border:"2px solid #292524",position:"relative"}}>
+        {renderScene(gW, gH, positions, 1, false, "n")}
+        <GardenRabbitsCanvas width={gW} height={gH}/>
+        <div style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,.5)",borderRadius:8,padding:"3px 8px",fontSize:11,color:"#fef3c7",fontFamily:"'Baloo 2',cursive",pointerEvents:"none"}}>⤢ tap to expand</div>
+        {tooltip&&tooltipBox(tooltip,gW,gH)}
+        {basketOpen&&basketBox()}
+      </div>
+      <div style={{padding:"10px 20px 0",display:"flex",gap:14,flexWrap:"wrap"}}>
+        {[{c:"#f97316",l:t.healthy},{c:"#7ea82a",l:t.growing},{c:"#5c3d1e",l:t.needsReview}].map(x=><div key={x.l} style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:10,height:10,borderRadius:2,background:x.c}}/><span style={{fontSize:11,color:"#57534e",fontFamily:"'Baloo 2',cursive"}}>{x.l}</span></div>)}
+        <span style={{fontSize:11,color:"#44403c",fontFamily:"'Baloo 2',cursive",fontStyle:"italic"}}>{t.tapCarrot}</span>
+      </div>
+      {subjects.length===0&&<div style={{textAlign:"center",padding:"60px 20px",color:"#44403c",fontFamily:"'Baloo 2',cursive"}}><div style={{fontSize:32,marginBottom:8}}>🌱</div><div style={{fontWeight:800,fontSize:15,color:"#57534e"}}>{t.gardenEmpty}</div><div style={{fontSize:13,marginTop:4}}>{t.gardenEmptySub}</div></div>}
+
+      {fullscreen && ReactDOM.createPortal(
+        <div style={{position:"fixed",inset:0,background:"#050402",zIndex:9500,display:"flex",flexDirection:"column",alignItems:"center",animation:"fadeIn .2s ease"}}>
+          <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px"}}>
+            <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:16,color:"#fbbf24"}}>🌱 {t.gardenTitle}</div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              {studying && liveElapsed>0 ? (
+                <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(16,185,129,.15)",border:"1px solid rgba(16,185,129,.4)",borderRadius:10,padding:"6px 12px",animation:"pulse 2s ease-in-out infinite"}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:"#10b981",boxShadow:"0 0 6px #10b981"}}/>
+                  <span style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:14,color:"#34d399",letterSpacing:1}}>
+                    {(()=>{const h=Math.floor(liveElapsed/3600),m=Math.floor((liveElapsed%3600)/60),s=liveElapsed%60;return h>0?`${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`:`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;})()}
+                  </span>
+                </div>
+              ) : (
+                <div style={{fontFamily:"'Baloo 2',cursive",fontSize:11,color:"#44403c",padding:"6px 12px"}}>No session</div>
+              )}
+              <button onClick={()=>{setFullscreen(false);setTooltip(null);setBasketOpen(false);}} style={{background:"#1c1917",border:"1px solid #44403c",borderRadius:10,padding:"6px 12px",color:"#a8a29e",fontSize:16,cursor:"pointer"}}>×</button>
+            </div>
+          </div>
+          <div style={{position:"relative",borderRadius:20,overflow:"hidden",border:"2px solid #292524",margin:"0 12px"}}>
+            {renderScene(fsW, fsLayout.gH, fsLayout.positions, fsScale, true, "f")}
+            <GardenRabbitsCanvas width={fsW} height={fsLayout.gH}/>
+            {tooltip&&tooltipBox(tooltip,fsW,fsLayout.gH)}
+            {basketOpen&&basketBox()}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+};
+
+// ── Focus Overlay ─────────────────────────────────────────────────────────────
+const FocusOverlay = ({ onExit, t }) => {
+  const [idx,setIdx]=useState(0); const [breath,setBreath]=useState("in"); const [elapsed,setElapsed]=useState(0);
+  useEffect(()=>{ const id=setInterval(()=>setIdx(i=>(i+1)%t.motiv.length),8000); return()=>clearInterval(id); },[t]);
+  useEffect(()=>{ const c=()=>{setBreath("in");setTimeout(()=>setBreath("out"),4000);}; c(); const id=setInterval(c,8000); return()=>clearInterval(id); },[]);
+  useEffect(()=>{ const id=setInterval(()=>setElapsed(e=>e+1),1000); return()=>clearInterval(id); },[]);
+  const fmtT=(s)=>{const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;return h>0?`${h}:${String(m).padStart(2,"0")}:${String(sc).padStart(2,"0")}`:`${String(m).padStart(2,"0")}:${String(sc).padStart(2,"0")}`;};
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:200,background:"#050a05",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,animation:"fadeIn .4s ease"}}>
+      <div style={{position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none"}}>{[...Array(40)].map((_,i)=><div key={i} style={{position:"absolute",left:`${(i*137.5)%100}%`,top:`${(i*61.8)%100}%`,width:1.5+Math.sin(i),height:1.5+Math.sin(i),borderRadius:"50%",background:"white",opacity:.15+Math.sin(i*2)*.15,animation:`twinkle ${2+Math.sin(i)*1.5}s ease-in-out ${i*.15}s infinite alternate`}}/>)}</div>
+      <div style={{background:"rgba(239,68,68,.15)",border:"2px solid rgba(239,68,68,.4)",borderRadius:99,padding:"6px 18px",marginBottom:32,fontFamily:"'Baloo 2',cursive",fontSize:13,fontWeight:700,color:"#c4867a"}}>{t.focusActive}</div>
+      <div style={{width:breath==="in"?140:100,height:breath==="in"?140:100,borderRadius:"50%",background:breath==="in"?"radial-gradient(circle,rgba(16,185,129,.35),rgba(16,185,129,.05))":"radial-gradient(circle,rgba(59,130,246,.35),rgba(59,130,246,.05))",border:`3px solid ${breath==="in"?"rgba(16,185,129,.5)":"rgba(59,130,246,.5)"}`,transition:"all 4s ease-in-out",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:36,position:"relative"}}>
+        <div style={{fontSize:36}}>🐰</div>
+        <div style={{position:"absolute",bottom:-26,fontFamily:"'Baloo 2',cursive",fontSize:11,color:breath==="in"?"#10b981":"#3b82f6",transition:"color 4s",fontWeight:700,letterSpacing:2}}>{breath==="in"?t.breathIn:t.breathOut}</div>
+      </div>
+      <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:52,color:"#fef3c7",letterSpacing:2,marginBottom:4}}>{fmtT(elapsed)}</div>
+      <div style={{fontFamily:"'Baloo 2',cursive",fontSize:11,color:"#44403c",marginBottom:32,letterSpacing:2}}>{t.focusTime}</div>
+      <div style={{fontFamily:"'Baloo 2',cursive",fontSize:15,fontWeight:700,color:"#a8a29e",textAlign:"center",maxWidth:280,lineHeight:1.6,marginBottom:44}}>"{t.motiv[idx]}"</div>
+      <button onClick={onExit} style={{padding:"12px 28px",background:"transparent",border:"2px solid #44403c",borderRadius:14,color:"#78716c",fontFamily:"'Baloo 2',cursive",fontSize:14,fontWeight:700,cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.borderColor="#f59e0b";e.currentTarget.style.color="#fbbf24";}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#44403c";e.currentTarget.style.color="#78716c";}}>{t.focusExit}</button>
+    </div>
+  );
+};
+
+// ── Account Tab ───────────────────────────────────────────────────────────────
+const AccountTab = ({ subjects, profile, onUpdateProfile, lang, setLang, focusMode, setFocusMode, eyeComfort, setEyeComfort, eyeWarmth, setEyeWarmth, notifs, setNotifs, onLogout, username, t }) => {
+  const [editingName,setEditingName]=useState(false); const [nameInput,setNameInput]=useState(profile.name);
+  const [confirmLogout,setConfirmLogout]=useState(false);
+  const totalCarrots=subjects.reduce((a,s)=>a+s.stage,0),totalTime=subjects.reduce((a,s)=>a+s.totalTime,0),totalSessions=subjects.reduce((a,s)=>a+s.sessions,0),level=Math.floor(totalCarrots/5)+1,xpPct=((totalCarrots%5)/5)*100;
+  const PALETTE=["#f59e0b","#10b981","#3b82f6","#ec4899","#a78bfa","#f97316"];
+  const saveName=()=>{onUpdateProfile({...profile,name:nameInput.trim()||"Learner"});setEditingName(false);};
+  return (
+    <div style={{padding:"4px 20px 0"}}>
+      {/* Profile */}
+      <div style={{background:"linear-gradient(135deg,#1c1917,#292524)",border:"2px solid #44403c",borderRadius:20,padding:"24px 20px",marginBottom:20,textAlign:"center"}}>
+        <div style={{width:76,height:76,borderRadius:"50%",background:profile.avatarColor,margin:"0 auto 10px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:34,border:"3px solid #44403c",boxShadow:`0 0 24px ${profile.avatarColor}44`}}>🐰</div>
+        <div style={{fontSize:11,color:"#44403c",marginBottom:8,fontFamily:"'Baloo 2',cursive",letterSpacing:1}}>@{username}</div>
+        <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:14}}>{PALETTE.map(c=><button key={c} onClick={()=>onUpdateProfile({...profile,avatarColor:c})} style={{width:20,height:20,borderRadius:"50%",background:c,border:`2px solid ${profile.avatarColor===c?"white":"transparent"}`,cursor:"pointer"}}/>)}</div>
+        {editingName?<div style={{display:"flex",gap:8,justifyContent:"center",alignItems:"center",marginBottom:6}}><input value={nameInput} onChange={e=>setNameInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveName();if(e.key==="Escape")setEditingName(false);}} autoFocus style={{background:"#0c0a09",border:"2px solid #f59e0b",borderRadius:10,padding:"6px 12px",color:"#fef3c7",fontFamily:"'Baloo 2',cursive",fontSize:18,fontWeight:800,textAlign:"center",outline:"none",width:180}}/><button onClick={saveName} style={{background:"#10b981",border:"none",borderRadius:8,padding:"6px 12px",color:"white",fontFamily:"'Baloo 2',cursive",fontWeight:700,cursor:"pointer"}}>✓</button></div>
+        :<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:4}}><div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:22,color:"#fef3c7"}}>{profile.name}</div><button onClick={()=>setEditingName(true)} style={{background:"none",border:"none",color:"#57534e",cursor:"pointer",fontSize:14,padding:0}}>✏️</button></div>}
+        <div style={{fontSize:12,color:"#57534e",marginBottom:16}}>{t.level} {level} · {profile.streak||0} {t.streak} 🔥</div>
+        <div style={{position:"relative",height:14,background:"#0c0a09",borderRadius:99,overflow:"hidden",border:"1px solid #44403c"}}>
+          <div style={{height:"100%",width:`${xpPct}%`,background:"linear-gradient(90deg,#f59e0b,#fbbf24)",borderRadius:99}}/>
+          <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"white",fontFamily:"'Baloo 2',cursive",textShadow:"0 1px 2px rgba(0,0,0,.8)"}}>{totalCarrots%5}/5 → {t.level} {level+1}</div>
+        </div>
+      </div>
+      {/* Stats */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+        {[{icon:"🥕",label:t.totalCarrots,value:totalCarrots,col:"#f97316"},{icon:"🔥",label:t.dayStreak,value:`${profile.streak||0}d`,col:"#f59e0b"},{icon:"📚",label:t.subjects,value:subjects.length,col:"#10b981"},{icon:"🕐",label:t.studyTime,value:`${Math.round(totalTime/60)}m`,col:"#3b82f6"},{icon:"✅",label:t.sessions,value:totalSessions,col:"#a78bfa"},{icon:"⭐",label:t.level,value:level,col:"#fbbf24"}].map(s=>(
+          <div key={s.label} style={{background:"#1c1917",border:"1px solid #292524",borderRadius:16,padding:"16px",textAlign:"center"}}><div style={{fontSize:26}}>{s.icon}</div><div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:22,color:s.col,marginTop:4}}>{s.value}</div><div style={{fontSize:11,color:"#57534e",marginTop:2}}>{s.label}</div></div>
+        ))}
+      </div>
+      {/* Settings */}
+      <div style={{background:"#1c1917",border:"1px solid #292524",borderRadius:20,overflow:"hidden",marginBottom:16}}>
+        <div style={{padding:"12px 18px",borderBottom:"1px solid #292524",fontSize:11,color:"#78716c",fontFamily:"'Baloo 2',cursive",fontWeight:700,letterSpacing:1.5}}>{t.settings}</div>
+        {[{icon:"🔔",label:t.reminders,sub:t.remindersSub,val:notifs,set:setNotifs}].map((s,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px",borderBottom:"1px solid #292524"}}>
+            <div style={{display:"flex",gap:12,alignItems:"center"}}><span style={{fontSize:20}}>{s.icon}</span><div><div style={{fontFamily:"'Baloo 2',cursive",fontWeight:700,fontSize:15,color:"#fef3c7"}}>{s.label}</div><div style={{fontSize:11,color:"#57534e",marginTop:1}}>{s.sub}</div></div></div>
+            <Toggle value={s.val} onChange={s.set}/>
+          </div>
+        ))}
+        {/* Eye Comfort — warm amber overlay */}
+        <div style={{borderBottom:"1px solid #292524"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px"}}>
+            <div style={{display:"flex",gap:12,alignItems:"center"}}>
+              <span style={{fontSize:20}}>🌙</span>
+              <div>
+                <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:700,fontSize:15,color:"#fef3c7"}}>Eye Comfort</div>
+                <div style={{fontSize:11,color:"#57534e",marginTop:1}}>Warm amber tint · reduces eye strain</div>
+              </div>
+            </div>
+            <Toggle value={eyeComfort} onChange={setEyeComfort}/>
+          </div>
+          {eyeComfort&&(
+            <div style={{padding:"4px 18px 16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <span style={{fontSize:11,color:"#78716c",fontFamily:"'Baloo 2',cursive"}}>Warmth</span>
+                <span style={{fontSize:11,color:"#f59e0b",fontFamily:"'Baloo 2',cursive",fontWeight:700}}>
+                  {eyeWarmth<30?"Low":eyeWarmth<50?"Medium":eyeWarmth<65?"High":"Max"}
+                </span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:14}}>☀️</span>
+                <div style={{flex:1,position:"relative",height:20,display:"flex",alignItems:"center"}}>
+                  <div style={{position:"absolute",left:0,right:0,height:4,borderRadius:2,background:"linear-gradient(90deg,#f59e0b22,#f97316)"}}/>
+                  <input type="range" min="15" max="75" value={eyeWarmth} onChange={e=>setEyeWarmth(Number(e.target.value))}
+                    style={{position:"relative",width:"100%",appearance:"none",WebkitAppearance:"none",background:"transparent",height:4,cursor:"pointer",accentColor:"#f59e0b"}}/>
+                </div>
+                <span style={{fontSize:14}}>🌙</span>
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px",borderBottom:"1px solid #292524"}}>
+          <div style={{display:"flex",gap:12,alignItems:"center"}}><span style={{fontSize:20}}>🔕</span><div><div style={{fontFamily:"'Baloo 2',cursive",fontWeight:700,fontSize:15,color:"#fef3c7"}}>{t.focusMode}</div><div style={{fontSize:11,color:"#57534e",marginTop:1}}>{t.focusModeSub}</div></div></div>
+          <Toggle value={focusMode} onChange={setFocusMode}/>
+        </div>
+        {/* Language */}
+        <div style={{padding:"14px 18px",borderBottom:"1px solid #292524"}}>
+          <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}><span style={{fontSize:20}}>🌐</span><div style={{fontFamily:"'Baloo 2',cursive",fontWeight:700,fontSize:15,color:"#fef3c7"}}>{t.language}</div></div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{LANGUAGES.map(l=><button key={l.code} onClick={()=>setLang(l.code)} style={{padding:"6px 12px",borderRadius:99,border:`2px solid ${lang===l.code?"#f59e0b":"#44403c"}`,background:lang===l.code?"rgba(245,158,11,.15)":"transparent",color:lang===l.code?"#fbbf24":"#78716c",fontFamily:"'Baloo 2',cursive",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}><span>{l.flag}</span>{l.label}</button>)}</div>
+        </div>
+        {/* Logout */}
+        <div style={{padding:"14px 18px"}}>
+          {!confirmLogout
+            ?<button onClick={()=>setConfirmLogout(true)} style={{width:"100%",padding:"11px",background:"rgba(239,68,68,.08)",border:"2px solid rgba(239,68,68,.25)",borderRadius:12,color:"#c4867a",fontFamily:"'Baloo 2',cursive",fontSize:14,fontWeight:700,cursor:"pointer"}}>🚪 {t.logout}</button>
+            :<div style={{display:"flex",gap:8}}><button onClick={onLogout} style={{flex:1,padding:"11px",background:"rgba(239,68,68,.2)",border:"2px solid rgba(239,68,68,.4)",borderRadius:12,color:"#c4867a",fontFamily:"'Baloo 2',cursive",fontSize:14,fontWeight:800,cursor:"pointer"}}>{t.logoutConfirm}</button><button onClick={()=>setConfirmLogout(false)} style={{flex:1,padding:"11px",background:"#292524",border:"2px solid #44403c",borderRadius:12,color:"#78716c",fontFamily:"'Baloo 2',cursive",fontSize:14,fontWeight:700,cursor:"pointer"}}>{t.cancel}</button></div>}
+        </div>
+      </div>
+      {/* Loop */}
+      <div style={{background:"#1c1917",border:"1px solid #292524",borderRadius:20,padding:"16px 18px",marginBottom:4}}>
+        <div style={{fontSize:11,color:"#78716c",fontFamily:"'Baloo 2',cursive",fontWeight:700,letterSpacing:1.5,marginBottom:12}}>{t.reviewLoop}</div>
+        <div style={{display:"flex",alignItems:"flex-end",gap:6,marginBottom:10}}>{INTERVALS.map((d,i)=><div key={i} style={{flex:1,textAlign:"center"}}><div style={{height:6+i*9,background:`hsl(${25+i*18},75%,55%)`,borderRadius:"3px 3px 0 0",marginBottom:4}}/><div style={{fontSize:10,color:"#78716c",fontFamily:"'Baloo 2',cursive",fontWeight:700}}>{d}d</div></div>)}</div>
+        <div style={{fontSize:12,color:"#57534e",fontFamily:"Georgia,serif",fontStyle:"italic",lineHeight:1.5}}>{t.loopDesc}</div>
+      </div>
+    </div>
+  );
+};
+
+// ── Splash Screen ──────────────────────────────────────────────────────────────
+const SplashScreen = ({ onDone, t }) => {
+  useEffect(() => {
+    const tid = setTimeout(onDone, 1700);
+    return () => clearTimeout(tid);
+  }, []);
+  const lines = (t.splashTagline || "Grow knowledge.\nOne carrot at a time.").split("\n");
+  return (
+    <div style={{minHeight:"100vh",minHeight:"100dvh",background:"#0c0a09",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",animation:"splashIn .5s ease"}}>
+      <div style={{fontSize:64,marginBottom:14}}>🐰</div>
+      <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:22,color:"#fbbf24",marginBottom:8}}>Loopy Study</div>
+      <div style={{fontFamily:"'Baloo 2',cursive",fontSize:13,color:"#78716c",textAlign:"center",lineHeight:1.6}}>
+        {lines.map((l,i)=><div key={i}>{l}</div>)}
+      </div>
+      <div style={{display:"flex",gap:6,marginTop:24}}>
+        {[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:"50%",background:"#f59e0b",animation:`dotPulse 1.2s ease infinite`,animationDelay:`${i*0.2}s`}}/>)}
+      </div>
+    </div>
+  );
+};
+
+// ── Auth Screen (Login / Register) ──────────────────────────────────────────────
+const AuthScreen = ({ onLogin, t }) => {
+  const [mode, setMode] = useState("login"); // login | register
+  const [username, setUsernameInput] = useState("");
+  const [password, setPasswordInput] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const inp = {width:"100%",background:"#1c1917",border:"2px solid #44403c",borderRadius:12,padding:"13px 14px",color:"#fef3c7",fontFamily:"'Baloo 2',cursive",fontSize:15,outline:"none",transition:"border-color .2s"};
+
+  const submit = async () => {
+    setError("");
+    const uname = username.trim();
+    if (uname.length < 3) { setError(t.usernameMin); return; }
+    if (password.length < 4) { setError(t.passwordMin); return; }
+    setLoading(true);
+    try {
+      if (mode === "register") {
+        if (password !== confirmPw) { setError(t.registerError); setLoading(false); return; }
+        const existing = await stor.get("user_" + uname);
+        if (existing) { setError(t.userExists); setLoading(false); return; }
+        await stor.set("user_" + uname, { pw: hashPass(password) });
+        await stor.set("loopy_session", { username: uname });
+        onLogin(uname);
+      } else {
+        const user = await stor.get("user_" + uname);
+        if (!user) { setError(t.noAccountFound || t.loginError); setLoading(false); return; }
+        if (user.pw !== hashPass(password)) { setError(t.loginError); setLoading(false); return; }
+        await stor.set("loopy_session", { username: uname });
+        onLogin(uname);
+      }
+    } catch (e) {
+      setError(t.loginError);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{minHeight:"100vh",minHeight:"100dvh",background:"#0c0a09",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px",animation:"fadeInUp .4s ease"}}>
+      <div style={{width:"100%",maxWidth:340}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:48,marginBottom:8}}>🐰</div>
+          <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:20,color:"#fbbf24"}}>
+            {mode === "login" ? t.loginTitle : t.registerTitle}
+          </div>
+          <div style={{fontFamily:"'Baloo 2',cursive",fontSize:13,color:"#78716c",marginTop:4}}>
+            {mode === "login" ? t.loginSub : t.registerSub}
+          </div>
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:14}}>
+          <input
+            value={username}
+            onChange={e=>setUsernameInput(e.target.value)}
+            placeholder={t.username}
+            autoCapitalize="none"
+            style={inp}
+            onFocus={e=>e.target.style.borderColor="#f59e0b"}
+            onBlur={e=>e.target.style.borderColor="#44403c"}
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={e=>setPasswordInput(e.target.value)}
+            placeholder={t.password}
+            onKeyDown={e=>{if(e.key==="Enter" && mode==="login") submit();}}
+            style={inp}
+            onFocus={e=>e.target.style.borderColor="#f59e0b"}
+            onBlur={e=>e.target.style.borderColor="#44403c"}
+          />
+          {mode === "register" && (
+            <input
+              type="password"
+              value={confirmPw}
+              onChange={e=>setConfirmPw(e.target.value)}
+              placeholder={t.confirmPw}
+              onKeyDown={e=>{if(e.key==="Enter") submit();}}
+              style={inp}
+              onFocus={e=>e.target.style.borderColor="#f59e0b"}
+              onBlur={e=>e.target.style.borderColor="#44403c"}
+            />
+          )}
+        </div>
+
+        {error && (
+          <div style={{color:"#c4867a",fontSize:12,fontFamily:"'Baloo 2',cursive",marginBottom:14,textAlign:"center"}}>{error}</div>
+        )}
+
+        <button
+          onClick={submit}
+          disabled={loading}
+          style={{width:"100%",padding:"14px",background:loading?"#292524":"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:14,color:loading?"#57534e":"#1c1917",fontFamily:"'Baloo 2',cursive",fontSize:16,fontWeight:800,cursor:loading?"default":"pointer",marginBottom:16}}
+        >
+          {loading ? "…" : (mode === "login" ? t.signIn : t.createAccount)}
+        </button>
+
+        <div style={{textAlign:"center",fontSize:13,fontFamily:"'Baloo 2',cursive",color:"#78716c"}}>
+          {mode === "login" ? t.noAccount : t.hasAccount}{" "}
+          <span
+            onClick={()=>{setMode(mode==="login"?"register":"login"); setError(""); setConfirmPw("");}}
+            style={{color:"#f59e0b",fontWeight:700,cursor:"pointer"}}
+          >
+            {mode === "login" ? t.register : t.signIn}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+function LoopyStudy() {
+  const [screen, setScreen] = useState("splash"); // splash | auth | app
+  const [username, setUsername] = useState(null);
+  const [subjects,setSubjectsRaw]=useState([]);
+  const [studying,setStudying]=useState(null);
+  const [showAdd,setShowAdd]=useState(false);
+  const [tab,setTab]=useState("today");
+  const [toast,setToast]=useState(null);
+  const [motivToast,setMotivToast]=useState(null);
+  const [profile,setProfileRaw]=useState({name:"Loopy Learner",avatarColor:"#f59e0b",streak:0});
+  const [lang,setLangRaw]=useState("en");
+  const [focusMode,setFocusMode]=useState(false);
+  const [studyMinimized, setStudyMinimized] = useState(false);
+  const [resumePrompt, setResumePrompt] = useState(null);
+  const [eyeComfort, setEyeComfortRaw] = useState(false);
+  const [eyeWarmth, setEyeWarmthRaw] = useState(40); // 20–70 opacity %
+  const [completionModal, setCompletionModal] = useState(null); // subject that just finished its full review series
+  const [notifs, setNotifsRaw] = useState(true); // kullanıcı bazında localStorage'a kaydedilir
+  const [liveElapsed, setLiveElapsed] = useState(0); // current session timer, fed from StudySession via onTick
+
+  const t = useT(lang);
+
+  // On mount: check for active session, then check for abandoned timer
+  useEffect(() => {
+    const tid = setTimeout(async () => {
+      try {
+        const session = await stor.get("loopy_session");
+        if (session && session.username) {
+          await loadUserData(session.username);
+          setUsername(session.username);
+          setScreen("app");
+          // Check for any abandoned study timers
+          try {
+            const _tks=_ls?Object.keys(localStorage).filter(k=>k.startsWith("loopy_timer_")):Object.keys(_mem).filter(k=>k.startsWith("loopy_timer_"));
+            const keys={keys:_tks};
+            if (keys && keys.keys && keys.keys.length > 0) {
+              const key = keys.keys[0];
+              const _st4=_ls?localStorage.getItem(key):(_mem[key]||null);const saved=_st4?{value:_st4}:null;
+              if(saved){
+                const {startedAt,base}=JSON.parse(saved.value);
+                const elapsed = base + Math.floor((Date.now()-startedAt)/1000);
+                const subId = parseInt(key.replace("loopy_timer_",""));
+                setResumePrompt({key, subId, elapsed});
+              }
+            }
+          } catch {}
+        }
+      } catch {}
+    }, 100);
+    return () => clearTimeout(tid);
+  }, []);
+
+  const loadUserData = async (uname) => {
+    try {
+      const s = await stor.get(`subj_${uname}`);
+      if (s) setSubjectsRaw(s.map(x => ({...x, nextReview: new Date(x.nextReview)})));
+      const p = await stor.get(`prof_${uname}`);
+      if (p) setProfileRaw(p);
+      const l = await stor.get(`lang_${uname}`);
+      if (l) setLangRaw(l);
+      const ec = await stor.get(`eye_${uname}`);
+      if (ec) { setEyeComfortRaw(ec.on); setEyeWarmthRaw(ec.warmth ?? 40); }
+      const nf = await stor.get(`notifs_${uname}`);
+      if (nf !== null && nf !== undefined) setNotifsRaw(nf);
+    } catch {}
+  };
+
+  // usernameRef ensures saves always use the current username even inside stale closures
+  const usernameRef = useRef(null);
+  useEffect(() => { usernameRef.current = username; }, [username]);
+
+  const setSubjects = (u) => {
+    setSubjectsRaw(prev => {
+      const next = typeof u === "function" ? u(prev) : u;
+      const uname = usernameRef.current;
+      if (uname) stor.set("subj_" + uname, next);
+      return next;
+    });
+  };
+
+  const setProfile = (v) => { setProfileRaw(v); const uname=usernameRef.current; if(uname) stor.set("prof_"+uname, v); };
+  const setLang = (l) => { setLangRaw(l); const uname=usernameRef.current; if(uname) stor.set("lang_"+uname, l); };
+  const setEyeComfort = (v) => { setEyeComfortRaw(v); if(usernameRef.current) stor.set('eye_'+usernameRef.current, {on:v, warmth:eyeWarmth}); };
+  const setEyeWarmth  = (v) => { setEyeWarmthRaw(v);  if(usernameRef.current) stor.set('eye_'+usernameRef.current, {on:eyeComfort, warmth:v}); };
+  const setNotifs = (v) => { setNotifsRaw(v); if(usernameRef.current) stor.set('notifs_'+usernameRef.current, v); };
+
+  const handleLogin = async (uname) => {
+    usernameRef.current = uname;
+    setUsername(uname);
+    await loadUserData(uname);
+    setScreen("app");
+  };
+
+  const handleLogout = async () => {
+    await stor.set("loopy_session", null);
+    setUsername(null);
+    setSubjectsRaw([]);
+    setProfileRaw({name:"Loopy Learner",avatarColor:"#f59e0b",streak:0});
+    setNotifsRaw(true); // logout'ta varsayılana döner, yeni kullanıcı kendi ayarını getirir
+    setTab("today");
+    setScreen("auth");
+  };
+
+  // Notifications: request permission once on login (sadece notifs açıksa)
+  useEffect(() => {
+    if (screen !== "app" || !notifs) return;
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, [screen, notifs]);
+
+  // Check for due subjects every 5 min and fire notification if app is in background
+  // notifs kapalıysa interval hiç kurulmaz, cleanup otomatik iptal eder
+  useEffect(() => {
+    if (screen !== "app" || !notifs) return;
+    const check = () => {
+      const due = subjects.filter(isDue);
+      if (due.length > 0 && document.hidden) {
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("🥕 Loopy Study", {
+            body: `${due.length} subject${due.length>1?"s":""} ready for review!`,
+            icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%90%B0%3C/text%3E%3C/svg%3E"
+          });
+        }
+      }
+    };
+    const id = setInterval(check, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [screen, subjects, notifs]);
+
+  // Motivational toasts
+  useEffect(() => {
+    if (screen !== "app") return;
+    const show = () => { setMotivToast(t.motiv[Math.floor(Math.random()*t.motiv.length)]); setTimeout(()=>setMotivToast(null),4500); };
+    const first = setTimeout(show, 30000);
+    const id = setInterval(show, 180000 + Math.random()*60000);
+    return () => { clearTimeout(first); clearInterval(id); };
+  }, [screen, lang]);
+
+  const totalCarrots = subjects.reduce((a,s)=>a+s.stage,0);
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null),3500); };
+  const addSubject = (s) => { setSubjects(p=>[s,...p]); showToast(`🌱 "${s.name}" planted!`); };
+  const deleteSubject = (id) => setSubjects(p=>p.filter(s=>s.id!==id));
+  const completeSession = (subjectId, elapsed) => {
+    let ni = 1;
+    let finished = null;
+    setSubjects(p=>p.map(s=>{
+      if (s.id !== subjectId) return s;
+
+      // 5-month maintenance phase
+      if (s.monthlyActive) {
+        const mc = s.monthlyCount + 1;
+        if (mc >= 5) {
+          ni = 0;
+          return { ...s, monthlyActive:false, monthlyCount:mc, nextReview:FAR_FUTURE(), totalTime:s.totalTime+elapsed, sessions:s.sessions+1 };
+        }
+        ni = 30;
+        return { ...s, monthlyCount:mc, nextReview:addDays(todayMidnight(),30), totalTime:s.totalTime+elapsed, sessions:s.sessions+1 };
+      }
+
+      // Completing the final stage (30-day review) → series done
+      if (s.stage === INTERVALS.length - 1 && !s.seriesDone) {
+        finished = { ...s, stage:INTERVALS.length, seriesDone:true, nextReview:FAR_FUTURE(), totalTime:s.totalTime+elapsed, sessions:s.sessions+1 };
+        return finished;
+      }
+
+      // Normal: advance stage, pick next interval
+      const ns = Math.min(s.stage + 1, INTERVALS.length - 1);
+      ni = INTERVALS[ns];
+      return { ...s, stage:ns, nextReview:addDays(todayMidnight(),ni), totalTime:s.totalTime+elapsed, sessions:s.sessions+1 };
+    }));
+    setStudying(null);
+    // Streak güncelle — sadece tamamlanan review sayılır, uygulama açmak sayılmaz
+    (() => {
+      const today = localDateStr();
+      const last  = profile.lastStudyDate;
+      const newStreak = last === today
+        ? (profile.streak || 1)              // bugün zaten çalışıldı → değişmez
+        : last === localYesterdayStr()
+          ? (profile.streak || 0) + 1        // dün çalışıldı → seri devam
+          : 1;                               // gün atlandı ya da ilk kez → sıfırdan başla
+      setProfile({ ...profile, streak: newStreak, lastStudyDate: today });
+    })();
+    if (finished) {
+      setCompletionModal(finished);
+    } else if (ni > 0) {
+      showToast(`🥕 Next review in ${ni} ${t.days}!`);
+    } else {
+      showToast(`🏆 5-month review series complete!`);
+    }
+  };
+
+  const acceptMonthlyRepeat = (subjectId, accept) => {
+    if (accept) {
+      setSubjects(p => p.map(s => s.id === subjectId
+        ? { ...s, monthlyActive:true, monthlyCount:0, nextReview:addDays(todayMidnight(),30) }
+        : s
+      ));
+    }
+    setCompletionModal(null);
+  };
+
+  const STYLES = `
+*{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#0c0a09;overflow-x:hidden;}
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fadeInUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes splashIn{from{opacity:0;transform:translateY(30px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.65}}
+    @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+    @keyframes motivIn{from{opacity:0;transform:translateX(-50%) translateY(-16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+    @keyframes twinkle{from{opacity:.15;transform:scale(1)}to{opacity:.7;transform:scale(1.5)}}
+    @keyframes dotPulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
+    @keyframes pingPulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,.6)}70%{box-shadow:0 0 0 8px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}}
+    input::placeholder,textarea::placeholder{color:#44403c}
+    input,textarea{caret-color:#f59e0b}
+    ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:#0c0a09}::-webkit-scrollbar-thumb{background:#44403c;border-radius:2px}
+  `;
+
+  // Inject head tags once
+  useEffect(() => {
+    document.title = "Loopy Study 🐰";
+    if (!document.querySelector('link[data-loopy]')) {
+      const lk = document.createElement('link');
+      lk.rel='icon'; lk.setAttribute('data-loopy','1');
+      lk.href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%90%B0%3C/text%3E%3C/svg%3E";
+      document.head.appendChild(lk);
+    }
+  }, []);
+
+  // Screens
+  if (screen === "splash") return (<><style>{STYLES}</style><SplashScreen onDone={()=>setScreen(s=>s==="splash"?"auth":s)} t={t}/></>);
+  if (screen === "auth") return (<><style>{STYLES}</style><AuthScreen onLogin={handleLogin} t={t}/></>);
+
+  const handleMinimizeStudy = () => setStudyMinimized(true);
+  const handleReturnToStudy = () => setStudyMinimized(false);
+  const handleStartStudy = (sub) => { setStudying(sub); setStudyMinimized(false); };
+
+  const TABS=[{id:"today",icon:"🏡",label:t.today},{id:"subjects",icon:"📖",label:t.subjects},{id:"garden",icon:"🌱",label:t.garden},{id:"account",icon:"🐰",label:t.account}];
+
+  return (
+    <>
+      <style>{STYLES}</style>
+
+      {/* ── Study session: always mounted when active, shown/hidden via z-index ── */}
+      {studying && (
+        <div style={{
+          position:"fixed", inset:0, zIndex: studyMinimized ? -1 : 100,
+          opacity: studyMinimized ? 0 : 1,
+          pointerEvents: studyMinimized ? "none" : "auto",
+          transition:"opacity .2s"
+        }}>
+          <StudySession
+            subject={studying}
+            onComplete={e=>{ completeSession(studying.id,e); setStudyMinimized(false); setLiveElapsed(0); }}
+            onCancel={()=>{ setStudying(null); setStudyMinimized(false); setLiveElapsed(0); }}
+            onMinimize={handleMinimizeStudy}
+            onTick={setLiveElapsed}
+            t={t}
+          />
+        </div>
+      )}
+
+      <HoppingRabbit/>
+      {completionModal && <CompletionModal subject={completionModal} onChoice={(yes)=>acceptMonthlyRepeat(completionModal.id, yes)}/>}
+      <div style={{minHeight:"100vh",background:"#0c0a09",color:"#fef3c7",fontFamily:"'Baloo 2',cursive",maxWidth:"var(--app-w,100%)",margin:"0 auto",paddingBottom:90}}>
+        {/* Header */}
+        <div style={{padding:"16px 20px 12px",background:"linear-gradient(180deg,#1c1917 0%,transparent 100%)",position:"sticky",top:0,zIndex:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{display:"flex",alignItems:"center",gap:9}}>
+              <div style={{width:34,height:34,borderRadius:10,background:"linear-gradient(135deg,#f59e0b,#d97706)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,boxShadow:"0 2px 8px rgba(245,158,11,.4)"}}>🐰</div>
+              <div><div style={{fontWeight:800,fontSize:20,color:"#fbbf24",lineHeight:1}}>{t.app}</div><div style={{fontSize:11,color:"#57534e",marginTop:1}}>{t.appSub}</div></div>
+            </div>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontWeight:800,fontSize:20,color:"#f97316"}}>🥕 {totalCarrots}</div>
+              <div style={{fontSize:9,color:"#57534e"}}>{t.carrots}</div>
+            </div>
+          </div>
+
+          {/* 🟢 Live session pill — visible on every tab while studying */}
+          {studying && studyMinimized && (
+            <LiveTimerPill subject={studying} onReturn={handleReturnToStudy}/>
+          )}
+
+          {/* Due subjects banner (only when not in a session) */}
+          {!studying && subjects.filter(isDue).length>0 && (
+            <div style={{marginTop:10,padding:"8px 14px",background:"rgba(245,158,11,.12)",border:"1px solid rgba(245,158,11,.3)",borderRadius:10,display:"flex",alignItems:"center",gap:8,animation:"pulse 2s infinite"}}>
+              <span style={{fontSize:14}}>⏰</span>
+              <span style={{fontSize:12,fontWeight:700,color:"#fbbf24",fontFamily:"'Baloo 2',cursive"}}>{subjects.filter(isDue).length} {t.dueToday}</span>
+              <button onClick={()=>setTab("today")} style={{marginLeft:"auto",background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:8,padding:"4px 12px",color:"#1c1917",fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:11,cursor:"pointer"}}>Review</button>
+            </div>
+          )}
+        </div>
+
+        {/* Resume-from-closed-tab banner */}
+        {resumePrompt && (() => {
+          const sub = subjects.find(s=>s.id===resumePrompt.subId);
+          if(!sub) return null;
+          const mins = Math.floor(resumePrompt.elapsed/60);
+          const secs = resumePrompt.elapsed%60;
+          return (
+            <div style={{margin:"0 20px 12px",padding:"12px 16px",background:"linear-gradient(135deg,rgba(59,130,246,.15),rgba(37,99,235,.08))",border:"2px solid rgba(59,130,246,.35)",borderRadius:16,display:"flex",alignItems:"center",gap:12,animation:"fadeIn .3s ease"}}>
+              <div style={{fontSize:24}}>⏱</div>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:14,color:"#93c5fd"}}>Session in progress</div>
+                <div style={{fontSize:12,color:"#57534e",marginTop:1}}>{sub.name} · {String(mins).padStart(2,"0")}:{String(secs).padStart(2,"0")} elapsed</div>
+              </div>
+              <button onClick={()=>{handleStartStudy(sub);setResumePrompt(null);}} style={{padding:"7px 14px",background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:10,color:"white",fontFamily:"'Baloo 2',cursive",fontWeight:800,fontSize:13,cursor:"pointer"}}>Resume</button>
+              <button onClick={async()=>{_ls?localStorage.removeItem(resumePrompt.key):(delete _mem[resumePrompt.key]);setResumePrompt(null);}} style={{background:"none",border:"none",color:"#44403c",fontSize:18,cursor:"pointer",padding:"0 2px"}}>×</button>
+            </div>
+          );
+        })()}
+
+        {tab==="today"    && <TodayTab    subjects={subjects} onStudy={handleStartStudy} onDelete={deleteSubject} t={t}/>}
+        {tab==="subjects" && <SubjectsTab subjects={subjects} onStudy={handleStartStudy} onDelete={deleteSubject} t={t}/>}
+        {tab==="garden"   && <GardenTab   subjects={subjects} onStudy={handleStartStudy} studying={studying} liveElapsed={liveElapsed} t={t}/>}
+        {tab==="account"  && <AccountTab  subjects={subjects} profile={profile} onUpdateProfile={setProfile} lang={lang} setLang={setLang} focusMode={focusMode} setFocusMode={setFocusMode} eyeComfort={eyeComfort} setEyeComfort={setEyeComfort} eyeWarmth={eyeWarmth} setEyeWarmth={setEyeWarmth} notifs={notifs} setNotifs={setNotifs} onLogout={handleLogout} username={username} t={t}/>}
+
+        {/* FAB */}
+        {tab!=="account"&&<button onClick={()=>setShowAdd(true)} style={{position:"fixed",bottom:78,right:"max(20px,calc(50% - var(--app-half,50%) + 20px))",width:54,height:54,background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:"50%",fontSize:28,cursor:"pointer",zIndex:25,boxShadow:"0 4px 20px rgba(245,158,11,.5)",display:"flex",alignItems:"center",justifyContent:"center",transition:"transform .15s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.12) rotate(12deg)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>＋</button>}
+
+        {/* Bottom nav */}
+        <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:"var(--app-w,100%)",background:"#1c1917",borderTop:"1px solid #292524",display:"flex",padding:"8px 0 14px",zIndex:20}}>
+          {TABS.map(tx=><button key={tx.id} onClick={()=>setTab(tx.id)} style={{flex:1,background:"transparent",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"5px 0"}}><div style={{fontSize:20}}>{tx.icon}</div><div style={{fontSize:10,fontWeight:700,color:tab===tx.id?"#fbbf24":"#44403c"}}>{tx.label}</div>{tab===tx.id&&<div style={{width:18,height:2,background:"#f59e0b",borderRadius:1}}/>}</button>)}
+        </div>
+
+        {focusMode&&<FocusOverlay onExit={()=>setFocusMode(false)} t={t}/>}
+        {/* Eye comfort warm overlay */}
+        {eyeComfort&&<div style={{position:"fixed",inset:0,background:`rgba(255,160,60,${eyeWarmth/100*0.55})`,pointerEvents:"none",zIndex:9998,mixBlendMode:"soft-light",borderRadius:0}}/>}
+        {motivToast&&<div style={{position:"fixed",top:80,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#1c1917,#292524)",border:"1px solid #f59e0b44",borderRadius:14,padding:"12px 20px",fontFamily:"'Baloo 2',cursive",fontSize:13,fontWeight:700,color:"#fbbf24",whiteSpace:"nowrap",zIndex:61,animation:"motivIn .3s cubic-bezier(.34,1.56,.64,1)",boxShadow:"0 8px 24px rgba(0,0,0,.5)",maxWidth:"90vw",textAlign:"center"}}>🌱 {motivToast}</div>}
+        {showAdd&&<AddModal onAdd={addSubject} onClose={()=>setShowAdd(false)} existingTags={[...new Set(subjects.map(s=>s.tag))].filter(Boolean)} t={t}/>}
+        {toast&&<div style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:"#292524",border:"1px solid #44403c44",borderRadius:12,padding:"10px 20px",fontFamily:"'Baloo 2',cursive",fontSize:13,color:"#fef3c7",whiteSpace:"nowrap",zIndex:60,animation:"toastIn .3s cubic-bezier(.34,1.56,.64,1)",boxShadow:"0 8px 24px rgba(0,0,0,.5)"}}>{toast}</div>}
+      </div>
+    </>
+  );
+}
+
+
+const _root=ReactDOM.createRoot(document.getElementById('root'));
+_root.render(React.createElement(LoopyStudy));
+  </script>
+</body>
+</html>
